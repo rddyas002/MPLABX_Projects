@@ -58,6 +58,7 @@ typedef enum {
 } SETUP_i2cDecision;
 
 volatile unsigned int ESC_PWM_REG = 0, AIL_PWM_REG = 0, ELEV_PWM_REG = 0, RUDD_PWM_REG = 0, GEAR_PWM_REG = 0, AUX_PWM_REG = 0;
+volatile unsigned int ESC_PWM_BUFFER_REG = 0, AIL_PWM_BUFFER_REG = 0, ELEV_PWM_BUFFER_REG = 0, RUDD_PWM_BUFFER_REG = 0, GEAR_PWM_BUFFER_REG = 0, AUX_PWM_BUFFER_REG = 0;
 
 SETUP_EXTERN void SETUP_clock(void);
 SETUP_EXTERN void SETUP_io(void);

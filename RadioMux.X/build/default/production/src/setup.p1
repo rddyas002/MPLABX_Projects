@@ -8103,11 +8103,37 @@ Version 3.2 HI-TECH Software Intermediate Code
 -> -> 0 `i `ui
 ]
 [; ;setup.h: 60: volatile unsigned int ESC_PWM_REG = 0, AIL_PWM_REG = 0, ELEV_PWM_REG = 0, RUDD_PWM_REG = 0, GEAR_PWM_REG = 0, AUX_PWM_REG = 0;
-[; ;setup.h: 62: void SETUP_clock(void);
-[; ;setup.h: 63: void SETUP_io(void);
-[; ;setup.h: 64: void SETUP_i2c(void);
-[; ;setup.h: 65: void SETUP_releaseI2C(void);
-[; ;setup.h: 66: void SETUP_PWM(void);
+"61
+[v _ESC_PWM_BUFFER_REG `Vui ~T0 @X0 1 e ]
+[i _ESC_PWM_BUFFER_REG
+-> -> 0 `i `ui
+]
+[v _AIL_PWM_BUFFER_REG `Vui ~T0 @X0 1 e ]
+[i _AIL_PWM_BUFFER_REG
+-> -> 0 `i `ui
+]
+[v _ELEV_PWM_BUFFER_REG `Vui ~T0 @X0 1 e ]
+[i _ELEV_PWM_BUFFER_REG
+-> -> 0 `i `ui
+]
+[v _RUDD_PWM_BUFFER_REG `Vui ~T0 @X0 1 e ]
+[i _RUDD_PWM_BUFFER_REG
+-> -> 0 `i `ui
+]
+[v _GEAR_PWM_BUFFER_REG `Vui ~T0 @X0 1 e ]
+[i _GEAR_PWM_BUFFER_REG
+-> -> 0 `i `ui
+]
+[v _AUX_PWM_BUFFER_REG `Vui ~T0 @X0 1 e ]
+[i _AUX_PWM_BUFFER_REG
+-> -> 0 `i `ui
+]
+[; ;setup.h: 61: volatile unsigned int ESC_PWM_BUFFER_REG = 0, AIL_PWM_BUFFER_REG = 0, ELEV_PWM_BUFFER_REG = 0, RUDD_PWM_BUFFER_REG = 0, GEAR_PWM_BUFFER_REG = 0, AUX_PWM_BUFFER_REG = 0;
+[; ;setup.h: 63: void SETUP_clock(void);
+[; ;setup.h: 64: void SETUP_io(void);
+[; ;setup.h: 65: void SETUP_i2c(void);
+[; ;setup.h: 66: void SETUP_releaseI2C(void);
+[; ;setup.h: 67: void SETUP_PWM(void);
 "5 src/setup.c
 [v _SETUP_clock `(v ~T0 @X0 1 ef ]
 {

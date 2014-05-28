@@ -1,10 +1,10 @@
-___awdiv: CODE, 990 0 188
-_SETUP_io: CODE, 1376 0 30
-_SETUP_i2c: CODE, 1406 0 26
-_main: CODE, 1178 0 86
-__initialization: CODE, 1326 0 44
-_i2c_process: CODE, 420 0 570
-_InterruptHandlerHigh: CODE, 8 0 408
-_SETUP_PWM: CODE, 1264 0 62
-_SETUP_clock: CODE, 1432 0 14
-Total: 1428
+___awdiv: CODE, 1038 0 188
+_SETUP_io: CODE, 1424 0 30
+_SETUP_i2c: CODE, 1454 0 26
+_main: CODE, 1226 0 86
+__initialization: CODE, 1374 0 44
+_i2c_process: CODE, 468 0 570
+_InterruptHandlerHigh: CODE, 8 0 456
+_SETUP_PWM: CODE, 1312 0 62
+_SETUP_clock: CODE, 1480 0 14
+Total: 1476

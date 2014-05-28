@@ -10134,6 +10134,7 @@ NOWHERE
 } SETUP_i2cDecision;
 
 volatile unsigned int ESC_PWM_REG = 0, AIL_PWM_REG = 0, ELEV_PWM_REG = 0, RUDD_PWM_REG = 0, GEAR_PWM_REG = 0, AUX_PWM_REG = 0;
+volatile unsigned int ESC_PWM_BUFFER_REG = 0, AIL_PWM_BUFFER_REG = 0, ELEV_PWM_BUFFER_REG = 0, RUDD_PWM_BUFFER_REG = 0, GEAR_PWM_BUFFER_REG = 0, AUX_PWM_BUFFER_REG = 0;
 
 extern void SETUP_clock(void);
 extern void SETUP_io(void);
@@ -10253,6 +10254,15 @@ RUDD_n = 1;
 ELEV_n = 1;
 GEAR_n = 1;
 AUX_n = 1;
+
+
+ESC_PWM_REG = ESC_PWM_BUFFER_REG;
+AIL_PWM_REG = AIL_PWM_BUFFER_REG;
+RUDD_PWM_REG = RUDD_PWM_BUFFER_REG;
+ELEV_PWM_REG = ELEV_PWM_BUFFER_REG;
+GEAR_PWM_REG = GEAR_PWM_BUFFER_REG;
+AUX_PWM_REG = AUX_PWM_BUFFER_REG;
+
 count = 0;
 }
 
@@ -10264,7 +10274,7 @@ volatile BOOL RECEIVING_FROM_MASTER = 0;
 void i2c_process(void){
 static unsigned char buffer;
 
-# 138
+# 147
 if (PIR1bits.SSPIF)
 {
 
@@ -10357,12 +10367,12 @@ SSP1CON1bits.CKP = 1;
 
 if (data_updated)
 {
-ESC_PWM_REG = ((unsigned short int) ((133 - (62))*dataBuffer[1]/255 + (62)));
-AIL_PWM_REG = ((unsigned short int) ((133 - (62))*dataBuffer[2]/255 + (62)));
-ELEV_PWM_REG = ((unsigned short int) ((133 - (62))*dataBuffer[3]/255 + (62)));
-RUDD_PWM_REG = ((unsigned short int) ((133 - (62))*dataBuffer[4]/255 + (62)));
-GEAR_PWM_REG = ((unsigned short int) ((133 - (62))*dataBuffer[5]/255 + (62)));
-AUX_PWM_REG = ((unsigned short int) ((133 - (62))*dataBuffer[6]/255 + (62)));
+ESC_PWM_BUFFER_REG = ((unsigned short int) ((133 - (62))*dataBuffer[1]/255 + (62)));
+AIL_PWM_BUFFER_REG = ((unsigned short int) ((133 - (62))*dataBuffer[2]/255 + (62)));
+ELEV_PWM_BUFFER_REG = ((unsigned short int) ((133 - (62))*dataBuffer[3]/255 + (62)));
+RUDD_PWM_BUFFER_REG = ((unsigned short int) ((133 - (62))*dataBuffer[4]/255 + (62)));
+GEAR_PWM_BUFFER_REG = ((unsigned short int) ((133 - (62))*dataBuffer[5]/255 + (62)));
+AUX_PWM_BUFFER_REG = ((unsigned short int) ((133 - (62))*dataBuffer[6]/255 + (62)));
 data_updated = 0;
 }
 }

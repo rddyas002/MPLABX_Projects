@@ -115,6 +115,15 @@ void interrupt InterruptHandlerHigh (void)
             ELEV_n = 1;
             GEAR_n = 1;
             AUX_n = 1;
+
+            // load buffer reg
+            ESC_PWM_REG = ESC_PWM_BUFFER_REG;
+            AIL_PWM_REG = AIL_PWM_BUFFER_REG;
+            RUDD_PWM_REG = RUDD_PWM_BUFFER_REG;
+            ELEV_PWM_REG = ELEV_PWM_BUFFER_REG;
+            GEAR_PWM_REG = GEAR_PWM_BUFFER_REG;
+            AUX_PWM_REG = AUX_PWM_BUFFER_REG;
+
             count = 0;
 	}
 
@@ -227,12 +236,12 @@ void i2c_process(void){
 
     if (data_updated)
     {
-	ESC_PWM_REG = SETUP_getDCRegVal(dataBuffer[1]);
-	AIL_PWM_REG = SETUP_getDCRegVal(dataBuffer[2]);
-	ELEV_PWM_REG = SETUP_getDCRegVal(dataBuffer[3]);
-	RUDD_PWM_REG = SETUP_getDCRegVal(dataBuffer[4]);
-        GEAR_PWM_REG = SETUP_getDCRegVal(dataBuffer[5]);
-	AUX_PWM_REG = SETUP_getDCRegVal(dataBuffer[6]);
+	ESC_PWM_BUFFER_REG = SETUP_getDCRegVal(dataBuffer[1]);
+	AIL_PWM_BUFFER_REG = SETUP_getDCRegVal(dataBuffer[2]);
+	ELEV_PWM_BUFFER_REG = SETUP_getDCRegVal(dataBuffer[3]);
+	RUDD_PWM_BUFFER_REG = SETUP_getDCRegVal(dataBuffer[4]);
+        GEAR_PWM_BUFFER_REG = SETUP_getDCRegVal(dataBuffer[5]);
+	AUX_PWM_BUFFER_REG = SETUP_getDCRegVal(dataBuffer[6]);
 	data_updated = false;
     }
 }
