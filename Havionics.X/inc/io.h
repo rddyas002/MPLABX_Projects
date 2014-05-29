@@ -84,7 +84,7 @@ typedef struct {
 #define IO_SPEED_TIMEOUT            (100)
 #define IO_PWM_UPDATE_DT            (20)
 
-#define IO_RPM_MAX                  (3200)
+#define IO_RPM_MAX                  (3500)
 #define IO_RPM_MIN                  (500)
 #define IO_PWM_SAT_MAX              (0xFF)
 #define IO_PWM_SAT_MIN              (0x00)
@@ -152,6 +152,7 @@ IO_EXTERN float IO_getServoRear_dt(void);
 IO_EXTERN float IO_getESC_dt(void);
 IO_EXTERN float IO_getGyroGain_dt(void);
 IO_EXTERN unsigned short int IO_getRotorSpeed(void);
+IO_EXTERN float IO_getFilteredRotorSpeed(void);
 IO_EXTERN  char IO_limit_PWM(int sig);
 
 IO_EXTERN UINT16 IO_getRudder(void);
@@ -181,6 +182,7 @@ IO_EXTERN float IO_roll_control(float roll_reference, float dt);
 IO_EXTERN float IO_pitch_control(float pitch_reference, float dt);
 IO_EXTERN void IO_shiftData(float data[3]);
 IO_EXTERN float IO_landingRefGen(float dt, bool reset);
+IO_EXTERN float IO_filter_speed(float speed_in, float dt, float wn);
 
 IO_EXTERN bool IO_getStateProject(void);
 IO_EXTERN void IO_setStateProject(bool val);

@@ -48,6 +48,7 @@ bool IO_flush_FS(void);
 volatile unsigned int IO_rotor_speed_dt = 0, IO_gyro_gain_dt = 0, IO_servo_left_dt = 0;
 volatile unsigned int IO_esc_dt = 0, IO_servo_right_dt = 0, IO_servo_rear_dt = 0, IO_rudder_dt = 0;
 volatile float IO_rotor_speed = 0;
+volatile float IO_filteredRotorSpeed = 0;
 volatile bool IO_gyro_gain_update = false, IO_servo_left_update = false;
 volatile bool IO_esc_update = false, IO_servo_right_update = false, IO_servo_rear_update = false, IO_rudder_update = false;
 volatile unsigned int IO_rotor_speed_update = 0;
@@ -94,7 +95,7 @@ volatile bool IO_LED_ON = false;
 // G(s) = 6.2 ----------- -----------
 //                  s      (s/30 + 1)
 // ***********************************
-#define IO_HEAVE_KP          (7)//(6.2)
+#define IO_HEAVE_KP          (6.2)//(6.2)
 #define IO_HEAVE_OMEGA_LEAD  (0.1)//(0.3)
 #define IO_HEAVE_OMEGA_LAG   (30)//(30)
 #define IO_HEAVE_OMEGA_TI    (1)//(0.3)
@@ -119,19 +120,14 @@ volatile bool IO_LED_ON = false;
 // Speed control parameters
 // Input PWM 0-255, Output speed rad/s
 // **********************************
-//             (s/2.5 + 1) 
-// G(s) = 1.44 -----------      omega_gc = 4.23 rad/s
+//             (s/2.13 + 1)
+// G(s) = 1.28 -----------      omega_gc = 4.12 rad/s
 //                  s     
-// Gain reduction due to noise from ESC
-// Kp' = 0.7 ---> omega_gc' = 2.2 rad/s
-
-#define IO_SPEED_KP          (0.7)
-#define IO_SPEED_OMEGA_TI    (2.5)
-/*
- * if integrator upper limit is chosen as x
- * UPPER_LIMIT = x/(KP/OMEGA_Ti)
- */
-#define IO_SPEED_UPPER_LIMIT (250)
+// With H(s) = 1/(s/(2*pi*10 + 1) + 1) on sensor signal
+#define IO_SPEED_KP          (1.28)
+#define IO_SPEED_OMEGA_TI    (2.13)
+#define IO_SPEED_LPF_WN      (2*M_PI*5)
+#define IO_SPEED_UPPER_LIMIT (254)
 #define IO_SPEED_LOWER_LIMIT (0)
 
 void IO_setup(void){
@@ -555,11 +551,19 @@ float IO_getGyroGain_dt(void){
 }
 
 unsigned short int IO_getRotorSpeed(void){
+
+    // angular_speed    1 rev     60 rev       6 rpm
+    //               = ------- = ---------- = ------ , where dt is the period NOT mark time
+    //                 dt*10 s    dt*10 min    dt
     if ((IO_rotor_speed_dt != 0) && (!IO_rotor_speed_timeout)){
         IO_rotor_speed = ((float)240e6)/((float)IO_rotor_speed_dt);
         return (unsigned short int) floor(IO_rotor_speed + 0.5);
     }
     return 0;
+}
+
+float IO_getFilteredRotorSpeed(void){
+    return IO_filteredRotorSpeed;
 }
 
 bool IO_timeoutSpeed(void){
@@ -633,10 +637,10 @@ void IO_speedController(void){
         ref_speed = IO_RPM_MAX;
     }
 
-    float current_speed = (float)IO_getRotorSpeed();
-    float current_error = (ref_speed - current_speed)*IO_RPM_2_RAD_PER_SEC;
     UINT32 current_time_speed = IO_get_time_ms();
-    float speed_dt = (current_time_speed - prev_timestamp_speed)*1e-3;
+    float speed_dt = (current_time_speed - prev_timestamp_speed)*1e-3;    
+    float current_speed = (float)IO_getRotorSpeed();//IO_filter_speed((float)IO_getRotorSpeed(), speed_dt, IO_SPEED_LPF_WN);
+    float current_error = (ref_speed - current_speed)*IO_RPM_2_RAD_PER_SEC;
     float upper_limit_int_speed = IO_SPEED_UPPER_LIMIT*IO_SPEED_OMEGA_TI/IO_SPEED_KP;
     float motor_pi = IO_PI_with_limits(IO_SPEED_KP, IO_SPEED_OMEGA_TI, speed_dt, current_error,
         &speed_input[0], &speed_output[0], 0, upper_limit_int_speed);
@@ -750,7 +754,10 @@ void IO_speedController(void){
     IO_longitudinal = longitudinal;
     IO_lateral = lateral;
     IO_collective = collective;
-    heave_control_sig = collective;
+    #if defined(HELICOPTER_2)
+        heave_control_sig = collective;
+    #endif
+
 
     int servo_right = PWM_PULSEWIDTH2BYTE((int)(SPEKTRUM_RIGHT_NOM + IO_lateral + IO_longitudinal + heave_control_sig));
     int servo_rear = PWM_PULSEWIDTH2BYTE((int)(SPEKTRUM_REAR_NOM + 2*IO_longitudinal - heave_control_sig));
@@ -771,7 +778,7 @@ void IO_speedController(void){
     bool ack = PWM_sendPacket(auto_mode_on,PWM_data,6);
 //    IO_generalLog((float)SPEKTRUM_getRUDDER(), ITG3200_getz_float(), (float)servo_rudder);
 //    IO_generalLog(IO_yaw_control_sig, ITG3200_getz_float(), yaw_sense_sig);
-    IO_logVital(auto_mode_on, current_speed, altitude_ref, ULTRASONIC_getHeave() + 0.0879);
+    IO_logVital(auto_mode_on, current_speed, altitude_ref, height_sensor);
 }
 
 char IO_limit_PWM(int sig){
@@ -1002,6 +1009,23 @@ float IO_filter_notch(float wn, float damp_p, float damp_z, float Ts, float inpu
 
     IO_filter_2nd_order(n0, n1, n2, d0, d1, d2, &input[0], &output[0]);
     return output[0];
+}
+
+float IO_filter_speed(float speed_in, float dt, float wn){
+    static float speed_input[3] = {0}, speed_output[3] = {0};
+
+    float n0 = (dt*wn);
+    float n1 = (dt*wn);
+    float d0 = (dt*wn + 2);
+    float d1 = (dt*wn - 2);
+
+    IO_shiftData(&speed_input[0]);
+    speed_input[0] = speed_in;
+    IO_shiftData(&speed_output[0]);
+
+    IO_filter_1st_order(n0, n1, d0, d1, &speed_input[0], &speed_output[0]);
+    IO_filteredRotorSpeed = speed_output[0];
+    return IO_filteredRotorSpeed;
 }
 
 float IO_roll_control(float roll_reference, float dt){
@@ -1268,6 +1292,7 @@ void __ISR(_CHANGE_NOTICE_VECTOR, IPL7SRS) changeNotificationHandler(void)
     // clear the interrupt flag
     mCNClearIntFlag();
 
+    // Measuring the period of the pulse...not the mark time
     if ((port_val_D & IO_OPTO_ENCODER_PIND) && (pin_prev_state[0] == low))
     {
         pin_prev_state[0] = high;
