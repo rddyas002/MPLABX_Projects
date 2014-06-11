@@ -21,7 +21,7 @@
     #define high                    1
     #define low                     0
     
-    // enable change notification
+    // Enable read of radio channel PWM
     #define SETUP_RADIO_DETECT
 
     /* Switch */

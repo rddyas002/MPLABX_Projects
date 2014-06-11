@@ -18,6 +18,9 @@ float IMU_yaw = 0;
 
 static float angular_rate[3] = {0};
 
+volatile float IMU_bias_upper_limit_int = 1;
+volatile float IMU_bias_lower_limit_int = -1;
+
 // attitude estimation
 float IMU_q[4] = {0,1,0,0};
 
@@ -27,6 +30,9 @@ void IMU_openI2C(void){
         OpenI2C1( I2C_EN | I2C_SLW_EN , I2C1_BAUD );
         IMU_i2cOpen = true;
     }
+
+    IMU_bias_upper_limit_int = IMU_BIAS_UPPER_LIMIT*IMU_OMEGA_TI/IMU_OMEGA_KP;
+    IMU_bias_lower_limit_int = IMU_BIAS_LOWER_LIMIT*IMU_OMEGA_TI/IMU_OMEGA_KP;
 }
 
 bool IMU_tryConfig(uchar reg, uchar data, uchar ADDRESS){
@@ -104,12 +110,39 @@ void IMU_initializeQuaternion(float * quat){
 
 void IMU_propagateState(float dt){
     static int normalize_counter = 0;
+    static float qx_bias_input[3] = {0}, qx_bias_output[3] = {0};
+    static float qy_bias_input[3] = {0}, qy_bias_output[3] = {0};
+    static float qz_bias_input[3] = {0}, qz_bias_output[3] = {0};
     float q_next[4] = {0};
+    float q_err[4] = {0};
 
-    q_next[0] = IMU_q[0] - dt*0.5*(IMU_q[1]*gyro_wx_rad + IMU_q[2]*gyro_wy_rad + IMU_q[3]*gyro_wz_rad);
-    q_next[1] = IMU_q[1] + dt*0.5*(IMU_q[0]*gyro_wx_rad - IMU_q[3]*gyro_wy_rad + IMU_q[2]*gyro_wz_rad);
-    q_next[2] = IMU_q[2] + dt*0.5*(IMU_q[3]*gyro_wx_rad + IMU_q[0]*gyro_wy_rad - IMU_q[1]*gyro_wz_rad);
-    q_next[3] = IMU_q[3] - dt*0.5*(IMU_q[2]*gyro_wx_rad - IMU_q[1]*gyro_wy_rad - IMU_q[0]*gyro_wz_rad);
+    // determine rate correction factor
+    // If recent valid data had come through comms do est
+    if (!RN131_getTimeout()){
+        // rotate quaternions along x axis by 180
+        float q_est[4];
+        IMU_rotateXby180(&IMU_q[0],&q_est[0]);
+        float q_cam[4];
+        IMU_rotateXby180(RN131_getQuaternion(),&q_cam[0]);
+        // get quaternion error
+        IMU_quaternion_error(&q_cam[0], &q_est[0], &q_err[0]);
+    }
+    // If there is a timeout q_err is zero an has no effect on offsets
+    float omega_x_offset = IO_PI_with_limits(IMU_OMEGA_KP, IMU_OMEGA_TI, dt, q_err[1],
+        &qx_bias_input[0], &qx_bias_output[0], IMU_bias_lower_limit_int, IMU_bias_upper_limit_int);
+    float omega_y_offset = IO_PI_with_limits(IMU_OMEGA_KP, IMU_OMEGA_TI, dt, q_err[2],
+        &qy_bias_input[0], &qy_bias_output[0], IMU_bias_lower_limit_int, IMU_bias_upper_limit_int);
+    float omega_z_offset = IO_PI_with_limits(IMU_OMEGA_KP, IMU_OMEGA_TI, dt, q_err[3],
+        &qz_bias_input[0], &qz_bias_output[0], IMU_bias_lower_limit_int, IMU_bias_upper_limit_int);
+
+    float gyro_x_corrected = gyro_wx_rad + omega_x_offset;
+    float gyro_y_corrected = gyro_wy_rad + omega_y_offset;
+    float gyro_z_corrected = gyro_wz_rad + omega_z_offset;
+
+    q_next[0] = IMU_q[0] - dt*0.5*(IMU_q[1]*gyro_x_corrected + IMU_q[2]*gyro_y_corrected + IMU_q[3]*gyro_z_corrected);
+    q_next[1] = IMU_q[1] + dt*0.5*(IMU_q[0]*gyro_x_corrected - IMU_q[3]*gyro_y_corrected + IMU_q[2]*gyro_z_corrected);
+    q_next[2] = IMU_q[2] + dt*0.5*(IMU_q[3]*gyro_x_corrected + IMU_q[0]*gyro_y_corrected - IMU_q[1]*gyro_z_corrected);
+    q_next[3] = IMU_q[3] - dt*0.5*(IMU_q[2]*gyro_x_corrected - IMU_q[1]*gyro_y_corrected - IMU_q[0]*gyro_z_corrected);
 
     memcpy(&IMU_q[0], &q_next[0],4*sizeof(float));
 
@@ -118,10 +151,21 @@ void IMU_propagateState(float dt){
         normalize_counter = 0;
     }
 
-    float flip[4] = {0,1,0,0};
-    float quat_ret[4];
-    IMU_quaternionRotate(&IMU_q[0], &flip[0], &quat_ret[0]);
-    IMU_quaternion2euler(quat_ret, &IMU_roll, &IMU_pitch, &IMU_yaw);
+    float quat_ret[4], temp_yaw = 0;
+    IMU_rotateXby180(&IMU_q[0],&quat_ret[0]);
+    IMU_quaternion2euler(quat_ret, &IMU_roll, &IMU_pitch, &temp_yaw);
+
+    // Phase wrap yaw angle
+    int yaw_diff = (int)COM_round((IMU_yaw - temp_yaw)/(360));
+    IMU_yaw = temp_yaw + yaw_diff*360;
+
+
+
+    char imu_buffer[256];
+    int imu_sd = sprintf(&imu_buffer[0],"%.2f,%.2f,%.2f,%d,%lu\r\n",
+            IMU_roll, IMU_pitch, IMU_yaw,
+            RN131_getTimeout(), IO_get_time_ms());
+    IO_logMessage(&imu_buffer[0], imu_sd);
 }
 
 void IMU_quaternion2euler(float q[4], float * roll, float * pitch, float * yaw){
@@ -162,6 +206,14 @@ void IMU_quaternionRotate(const float q1[4], const float q2[4], float q[4]){
   }
 }
 
+void IMU_rotateXby180(float q_in[4], float q_out[4]){
+    q_out[0] = -q_in[1];
+    q_out[1] =  q_in[0];
+    q_out[2] = -q_in[3];
+    q_out[3] =  q_in[2];
+}
+
+
 float IMU_getRoll(void){
     return IMU_roll;
 }
@@ -172,6 +224,25 @@ float IMU_getPitch(void){
 
 float IMU_getYaw(void){
     return IMU_yaw;
+}
+
+INT16 IMU_getRoll16BIT(void){
+    // Gives 0.01 degree resolution on receive side
+    return (INT16)(IMU_roll*100);
+}
+
+INT16 IMU_getPitch16BIT(void){
+    // Gives 0.01 degree resolution on receive side
+    return (INT16)(IMU_pitch*100);
+}
+
+INT16 IMU_getYaw16BIT(void){
+    // Gives 0.01 degree resolution on receive side
+    return (INT16)(IMU_yaw*100);
+}
+
+float * IMU_getQuaternion(void){
+    return &IMU_q[0];
 }
 
 void IMU_correctGyro(float dt){
@@ -231,4 +302,40 @@ void IMU_normalizeVector(float array[], int len){
     for (k = 0; k < len; k++){
         array[k] = array[k]/norm;
     }
+}
+
+void IMU_quaternion_error(const float p[4], const float q[4], float q_err[4]){
+  float q_conj[4] = {0};
+  int i = 0;
+  float b_p[16] = {0};
+  int i0 = 0;
+
+  q_conj[0] = q[0];
+  for (i = 0; i < 3; i++) {
+    q_conj[i + 1] = -q[i + 1];
+  }
+
+  /*  do quaternion multiplication */
+  b_p[0] = p[0];
+  b_p[4] = -p[1];
+  b_p[8] = -p[2];
+  b_p[12] = -p[3];
+  b_p[1] = p[1];
+  b_p[5] = p[0];
+  b_p[9] = -p[3];
+  b_p[13] = p[2];
+  b_p[2] = p[2];
+  b_p[6] = p[3];
+  b_p[10] = p[0];
+  b_p[14] = -p[1];
+  b_p[3] = p[3];
+  b_p[7] = -p[2];
+  b_p[11] = p[1];
+  b_p[15] = p[0];
+  for (i = 0; i < 4; i++) {
+    q_err[i] = 0.0F;
+    for (i0 = 0; i0 < 4; i0++) {
+      q_err[i] += b_p[i + (i0 << 2)] * (float)q_conj[i0];
+    }
+  }
 }

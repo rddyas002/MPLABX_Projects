@@ -33,7 +33,7 @@ bool ITG3200_setup(void){
 void ITG3200_calibrate(void){
     int i;
     float x = 0.0, y = 0.0, z = 0.0;
-    short int x_int16 = 0, y_int16 = 0, z_int16 = 0;
+    int x_int32 = 0, y_int32 = 0, z_int32 = 0;
 
     // dummy read to initialise filter variables
     for (i = 0; i < 100; i++){
@@ -46,12 +46,12 @@ void ITG3200_calibrate(void){
         ITG3200_readData();
         wait(7937);
         x += itg3200_data.x_float;
-        y += itg3200_data.x_float;
-        z += itg3200_data.x_float;
+        y += itg3200_data.y_float;
+        z += itg3200_data.z_float;
 
-        x_int16 += itg3200_data.x_16bit;
-        y_int16 += itg3200_data.y_16bit;
-        z_int16 += itg3200_data.z_16bit;
+        x_int32 += itg3200_data.x_16bit;
+        y_int32 += itg3200_data.y_16bit;
+        z_int32 += itg3200_data.z_16bit;
     }
 
     // store float bias for accurate on-board estimation
@@ -59,9 +59,9 @@ void ITG3200_calibrate(void){
     itg3200_data.bias_y_float = (float)y / ITG3200_CALIBRATE_ITERATION;
     itg3200_data.bias_z_float = (float)z / ITG3200_CALIBRATE_ITERATION;
 
-    itg3200_data.bias_x_16bit = x_int16 / ITG3200_CALIBRATE_ITERATION;
-    itg3200_data.bias_y_16bit = y_int16 / ITG3200_CALIBRATE_ITERATION;
-    itg3200_data.bias_z_16bit = z_int16 / ITG3200_CALIBRATE_ITERATION;
+    itg3200_data.bias_x_16bit = (short int)(x_int32 / ITG3200_CALIBRATE_ITERATION);
+    itg3200_data.bias_y_16bit = (short int)(y_int32 / ITG3200_CALIBRATE_ITERATION);
+    itg3200_data.bias_z_16bit = (short int)(z_int32 / ITG3200_CALIBRATE_ITERATION);
 }
 
 void ITG3200_readData(void)

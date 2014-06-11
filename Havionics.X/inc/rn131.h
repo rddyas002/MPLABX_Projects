@@ -23,6 +23,7 @@
 #define RN131_BUFFER_SIZE       256
 #define RN131_DATA_PERIOD       (20)    // millisecond
 #define RN131_DATA_PERIOD_DELTA (50000)
+#define RN131_RX_TIMEOUT        (100)   // ms
 
 #define RN131_DMA_TX_PRIORITY DMA_CHN_PRI3
 #define RN131_DMA_RX_PRIORITY DMA_CHN_PRI1
@@ -74,6 +75,10 @@ RN131_EXTERN UINT32 RN131_getSendTime(void);
 RN131_EXTERN UINT32 RN131_getLastRxTime(void);
 RN131_EXTERN bool RN131_dataMatch(void);
 RN131_EXTERN void RN131_logDataWireless(float a1, float a2, float a3);
+RN131_EXTERN float * RN131_getQuaternion(void);
+RN131_EXTERN bool RN131_timeoutInc(void);
+RN131_EXTERN void RN131_clearTimeout(void);
+RN131_EXTERN bool RN131_getTimeout(void);
 
 // RN131 specific commands
 RN131_EXTERN void RN131_enterCmdMode(void);

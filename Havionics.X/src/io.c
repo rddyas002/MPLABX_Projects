@@ -15,7 +15,6 @@
  * IO uses time 1 for delays
  */
 
-IO_file IO_dmesg;
 IO_file IO_log;
 
 volatile UINT32 IO_time_ms = 0;
@@ -41,20 +40,18 @@ void IO_terminate_FS(void);
 bool IO_flush_FS(void);
 
 #define CONFIG (CN_ON | CN_IDLE_CON)
-//#define PINS (CN3_ENABLE | CN4_ENABLE | CN5_ENABLE | CN6_ENABLE | CN15_ENABLE | CN16_ENABLE | CN19_ENABLE)
-#define PINS (CN15_ENABLE | CN16_ENABLE)
+#define PINS (CN3_ENABLE | CN4_ENABLE | CN5_ENABLE | CN6_ENABLE | CN7_ENABLE | CN15_ENABLE | CN16_ENABLE | CN19_ENABLE)
 #define PULLUPS (CN_PULLUP_DISABLE_ALL)
 
-volatile unsigned int IO_rotor_speed_dt = 0, IO_gyro_gain_dt = 0, IO_servo_left_dt = 0;
-volatile unsigned int IO_esc_dt = 0, IO_servo_right_dt = 0, IO_servo_rear_dt = 0, IO_rudder_dt = 0;
+volatile unsigned int IO_rotor_speed_dt = 0, IO_gyrogain_dt = 0, IO_ultrasonic_dt = 0;
+volatile unsigned int IO_esc_dt = 0, IO_right_dt = 0, IO_rear_dt = 0, IO_rudder_dt = 0, IO_left_dt = 0;
 volatile float IO_rotor_speed = 0;
 volatile float IO_filteredRotorSpeed = 0;
-volatile bool IO_gyro_gain_update = false, IO_servo_left_update = false;
-volatile bool IO_esc_update = false, IO_servo_right_update = false, IO_servo_rear_update = false, IO_rudder_update = false;
 volatile unsigned int IO_rotor_speed_update = 0;
 volatile bool IO_rotor_speed_timeout = false;
 volatile bool IO_PWM_update = false;
 volatile bool IO_LED_ON = false;
+volatile bool RADIO_ERROR = true;
 
 // **********************************
 // Roll channel control parameters
@@ -101,7 +98,9 @@ volatile bool IO_LED_ON = false;
 #define IO_HEAVE_OMEGA_TI    (1)//(0.3)
 #define IO_HEAVE_UPPER_LIMIT (180)
 #define IO_HEAVE_LOWER_LIMIT (0)
-#define IO_ALTITUDE_LIMIT    (4)
+#define IO_ALTITUDE_LIMIT    (2)
+#define IO_ALTITUDE_LPF_WN   (3)
+#define IO_YAW_LPF_WN        (5)
 
 // **********************************
 // Yaw channel control parameters
@@ -124,7 +123,7 @@ volatile bool IO_LED_ON = false;
 // G(s) = 1.28 -----------      omega_gc = 4.12 rad/s
 //                  s     
 // With H(s) = 1/(s/(2*pi*10 + 1) + 1) on sensor signal
-#define IO_SPEED_KP          (1.28)
+#define IO_SPEED_KP          (1.44)
 #define IO_SPEED_OMEGA_TI    (2.13)
 #define IO_SPEED_LPF_WN      (2*M_PI*5)
 #define IO_SPEED_UPPER_LIMIT (254)
@@ -167,15 +166,21 @@ void IO_setup(void){
 void IO_changeNotificationSetup(void){
     // Set speed sensor pin and config change notice interrupt
     // D6,CN15: OPTO-ENCODER
-    // D7,CN16: GYRO_GAIN [6]
-    // D13,CN19: SERVO_LEFT [7]
-    // AN5,B5,CN7: NOT USED
-    // AN4,B4,CN6: ESC [2]
-    // AN3,B3,CN5: SERVO_RIGHT [3]
-    // AN2,B2,CN4: SERVO_REAR [4]
-    // AN1,B1,CN3: RUDDER [5]
-    PORTSetPinsDigitalIn(IOPORT_D, BIT_6 | BIT_7);// | BIT_13);
-//    PORTSetPinsDigitalIn(IOPORT_B, BIT_4 | BIT_3 | BIT_2 | BIT_1);
+    // D7,CN16: GYROGAIN [5]
+    // D13,CN19: ULTRASONIC SENSOR PULSEWIDTH
+    
+    // PGEC1/AN1/CN3/RB1 (24): ESC
+    // AN2/C2IN-/CN4/RB2 (23): RIGHT
+    // AN3/C2IN+/CN5/RB3 (22): REAR
+    // AN4/C1IN-/CN6/RB4 (21): RUDDER
+    // AN5/C1IN+/V BUSON /CN7/RB5 (20): LEFT
+    
+    #if defined(SETUP_RADIO_DETECT)
+        PORTSetPinsDigitalIn(IOPORT_D, BIT_6 | BIT_7 | BIT_13);
+        PORTSetPinsDigitalIn(IOPORT_B, BIT_1 | BIT_2 | BIT_3 | BIT_4 | BIT_5);
+    #else
+        PORTSetPinsDigitalIn(IOPORT_D, BIT_6 | BIT_13);
+    #endif
 
     mCNOpen(CONFIG, PINS, PULLUPS);
     ConfigIntCN(CHANGE_INT_ON | CHANGE_INT_PRI_7);
@@ -210,23 +215,12 @@ bool IO_initializeFile(IO_file * IO_file_ds, const char * IO_file_name){
 }
 
 void IO_terminate_FS(void){
-    if (IO_dmesg.file_opened){
-        if(FSfclose(IO_dmesg.fsFile))
-            IO_dmesg.error = CLOSE_ERROR;
-        else
-            IO_dmesg.file_opened = false;
-    }
-
     if (IO_log.file_opened){
         if(FSfclose(IO_log.fsFile))
             IO_log.error = CLOSE_ERROR;
         else
             IO_log.file_opened = false;
     }
-}
-
-bool IO_debugMessage(char * str){
-    IO_write_FS(&IO_dmesg, str, strlen(str));
 }
 
 bool IO_write_FS(IO_file * io_file, char * data, UINT16 len){
@@ -268,23 +262,6 @@ bool IO_write_FS(IO_file * io_file, char * data, UINT16 len){
 
 bool IO_flush_FS(void){
     // only if main buffer is full (512), do a write
-    if (IO_dmesg.buffer_overflow && IO_dmesg.file_opened){
-        if (FSfwrite (IO_dmesg.data_buffer, 1, IO_dmesg.write_length, IO_dmesg.fsFile) != IO_dmesg.write_length){
-            IO_dmesg.error = WRITE_ERROR;
-            return false;
-        }
-        else{
-            IO_dmesg.buffer_overflow = false;
-            IO_dmesg.write_length = 0;
-            // now move data from overflow to main buffer
-            memcpy(&(IO_dmesg.data_buffer[0]), &(IO_dmesg.overflow_buffer[0]), IO_dmesg.overflow_length);
-            IO_dmesg.write_length = IO_dmesg.overflow_length;
-            IO_dmesg.overflow_length = 0;
-            return true;
-        }
-    }
-
-    // only if main buffer is full (512), do a write
     if (IO_log.buffer_overflow && IO_log.file_opened){
         if (FSfwrite (IO_log.data_buffer, 1, IO_log.write_length, IO_log.fsFile) != IO_log.write_length){
             IO_log.error = WRITE_ERROR;
@@ -308,6 +285,10 @@ void IO_logMessage(char * str, UINT16 len){
 
 bool IO_getCloseFiles(void){
     return IO_closeFiles;
+}
+
+void IO_setCloseFiles(bool val){
+    IO_closeFiles = val;
 }
 
 void IO_enableLevelShifter1(BOOL val)
@@ -526,28 +507,34 @@ void IO_setSDFlush(bool val){
     IO_sdFlush = val;
 }
 
-float IO_getRudder_dt(void){
-    return (float) IO_rudder_dt / (40e3);
-}
-
-float IO_getServoLeft_dt(void){
-    return (float) IO_servo_left_dt / (40e3);
-}
-
-float IO_getServoRight_dt(void){
-    return (float) IO_servo_right_dt / (40e3);
-}
-
-float IO_getServoRear_dt(void){
-    return (float) IO_servo_rear_dt / (40e3);
-}
-
-float IO_getESC_dt(void){
-    return (float) IO_esc_dt / (40e3);
+bool IO_getRadioError(void){
+    return RADIO_ERROR;
 }
 
 float IO_getGyroGain_dt(void){
-    return (float) IO_gyro_gain_dt / (40e3);
+    return (float) IO_gyrogain_dt / (40e3);
+}
+
+float IO_getUltrasonic_dt(void){
+    return (float) IO_ultrasonic_dt / (40e6);
+}
+
+float IO_getAltitude(void){
+    static float previous_altitude = 0;
+
+    // 232e3 = 40e6*5.8...e-3(s/m)
+    // 16cm -> 928e-6s -> 37120
+    // 765cm -> 44.37e-3 -> 1774800
+
+    float current_altitude = (float)IO_ultrasonic_dt/(232000);
+    // If there is a sudden change in altitude signal greater than 2 meters
+    // assume last calculation is the best estimate
+    if (abs(current_altitude - previous_altitude) < 2){
+        previous_altitude = current_altitude;
+        return current_altitude;
+    }
+    else
+        return previous_altitude;
 }
 
 unsigned short int IO_getRotorSpeed(void){
@@ -578,28 +565,32 @@ bool IO_timeoutSpeed(void){
     }
 }
 
-UINT16 IO_getRudder(void){
-    return (UINT16) (IO_rudder_dt / (40));
+UINT16 IO_getGyroGain(void){
+    return (UINT16) (IO_gyrogain_dt / (40));
 }
 
-UINT16 IO_getServoLeft(void){
-    return (UINT16) (IO_servo_left_dt / (40));
-}
-
-UINT16 IO_getServoRight(void){
-    return (UINT16) (IO_servo_right_dt / (40));
-}
-
-UINT16 IO_getServoRear(void){
-    return (UINT16) (IO_servo_rear_dt / (40));
+UINT16 IO_getUltrasonic(void){
+    return (UINT16) (IO_ultrasonic_dt / (40));
 }
 
 UINT16 IO_getESC(void){
     return (UINT16) (IO_esc_dt / (40));
 }
 
-UINT16 IO_getGyroGain(void){
-    return (UINT16) (IO_gyro_gain_dt / (40));
+UINT16 IO_getRight(void){
+    return (UINT16) (IO_right_dt / (40));
+}
+
+UINT16 IO_getRear(void){
+    return (UINT16) (IO_rear_dt / (40));
+}
+
+UINT16 IO_getRudder(void){
+    return (UINT16) (IO_rudder_dt / (40));
+}
+
+UINT16 IO_getLeft(void){
+    return (UINT16) (IO_left_dt / (40));
 }
 
 char IO_sd_buffer[64];
@@ -617,15 +608,15 @@ void IO_speedController(void){
     // ********************************************************************* //
     // *** BEGIN Motor speed control *************************************** //
     // ********************************************************************* //
-    float throttle = (float)SPEKTRUM_getESC();
+    float throttle = (float)IO_getESC();//SPEKTRUM_getESC();
     if (throttle > 1100)
         internal_speed_ref = internal_speed_ref + 1;
     else
         internal_speed_ref = 0;
 
-    // double rate of increase if speed if greater than 1500 rpm
+    // double rate of increase if speed is greater than 1500 rpm
     if (internal_speed_ref > 1500)
-        internal_speed_ref = internal_speed_ref + 1;
+        internal_speed_ref = internal_speed_ref + 2;
 
     ref_speed = internal_speed_ref;
 
@@ -637,6 +628,12 @@ void IO_speedController(void){
         ref_speed = IO_RPM_MAX;
     }
 
+//    float ysin = sin(2*M_PI*0.2*IO_get_time_ms()/1000);
+//    if (ysin > 0)
+//        ref_speed = 3500;
+//    else
+//        ref_speed = 2500;
+
     UINT32 current_time_speed = IO_get_time_ms();
     float speed_dt = (current_time_speed - prev_timestamp_speed)*1e-3;    
     float current_speed = (float)IO_getRotorSpeed();//IO_filter_speed((float)IO_getRotorSpeed(), speed_dt, IO_SPEED_LPF_WN);
@@ -647,16 +644,22 @@ void IO_speedController(void){
     prev_timestamp_speed = current_time_speed;
     // ******************************************* END Motor speed control ***//
 
-
-    int right = (int)SPEKTRUM_getRIGHT() - SPEKTRUM_RIGHT_NOM;
-    int rear = -((int)SPEKTRUM_getREAR() - SPEKTRUM_REAR_NOM);
-    int left = -((int)SPEKTRUM_getLEFT() - SPEKTRUM_LEFT_NOM);
+    int right = (int)SPEKTRUM_getRIGHT() - SPEKTRUM_getRightNominal();
+    int rear = -((int)SPEKTRUM_getREAR() - SPEKTRUM_getRearNominal());
+    int left = -((int)SPEKTRUM_getLEFT() - SPEKTRUM_getLeftNominal());
     float collective = (right+left+rear)/3;
     IO_roll_ref = -(float)(right-left)/(10);
     IO_pitch_ref = (float)((right+left)/2-rear)/(10);   // 10 scales signal for 10 deg range
 
     float lateral = (float)(right-left)/(2);
     float longitudinal = (float)((right+left)/2-rear)/3;
+
+    int right_new = (int)IO_getRight() - SPEKTRUM_getRightNominal();
+    int rear_new = -((int)IO_getRear() - SPEKTRUM_getRearNominal());
+    int left_new = -((int)IO_getLeft() - SPEKTRUM_getLeftNominal());
+    float collective_new = (right_new+left_new+rear_new)/3;
+    float lateral_new = (float)(right_new-left_new)/(2);
+    float longitudinal_new = (float)((right_new+left_new)/2-rear_new)/3;
 
     // ********************************************************************* //
     // *** BEGIN Heave control ********************************************* //
@@ -685,56 +688,43 @@ void IO_speedController(void){
         }
     }
 
+    // Pre-filter altitude ref
+    float altitude_ref_filtered = IO_filter_altitude_prefilter(altitude_ref, speed_dt, IO_ALTITUDE_LPF_WN);
+    altitude_ref = altitude_ref_filtered;
+    
     if (altitude_ref > IO_ALTITUDE_LIMIT)   
         altitude_ref = IO_ALTITUDE_LIMIT;
     if (altitude_ref < 0)
         altitude_ref = 0;
 
     float height_sensor = 0;
-    if (IO_getLocalControl())
-        height_sensor = ULTRASONIC_getHeave() + 0.0879;
-    else
-        height_sensor = (float)RN131_get_tz()/1000;
+    height_sensor = IO_getAltitude();
+//    if (IO_getLocalControl())
+//        height_sensor = IO_getAltitude();//ULTRASONIC_getHeave() + 0.0879;
+//    else
+//        height_sensor = (float)RN131_get_tz()/1000;
 
-//    if (ULTRASONIC_isUpdated())
-//    {
-//        ULTRASONIC_setUpdatedFalse();
+    UINT32 current_time = IO_get_time_ms();
+    float heave_dt = (current_time - prev_timestamp_heave)*1e-3;
+    prev_timestamp_heave = current_time;
+    heave_control_sig = IO_heave_control(altitude_ref, height_sensor, heave_dt);
 
-        UINT32 current_time = IO_get_time_ms();
-        float heave_dt = (current_time - prev_timestamp_heave)*1e-3;
-        prev_timestamp_heave = current_time;
-        heave_control_sig = IO_heave_control(altitude_ref, height_sensor, heave_dt);//ULTRASONIC_getHeave() + 0.0879, heave_dt);
-
-        // limit heave control sig to 170 units
-        heave_control_sig = IO_limits(IO_HEAVE_LOWER_LIMIT, IO_HEAVE_UPPER_LIMIT, heave_control_sig);
-//    }
+    // limit heave control sig to 170 units
+    heave_control_sig = IO_limits(IO_HEAVE_LOWER_LIMIT, IO_HEAVE_UPPER_LIMIT, heave_control_sig);
     // ************************************************* END Heave control ***//
 
     /*****************/
-    /* Yaw control */
+    /*  Yaw control  */
     /*****************/
-//    float yaw_rate_ref = -50*(float)(SPEKTRUM_getRUDDER()-SPEKTRUM_getYawNominal())/300;
-//    if ((yaw_rate_ref > -3.3) && (yaw_rate_ref < 3.3)){
-//        yaw_rate_ref = 0;
-//    }
-//    else{
-//        if (yaw_rate_ref > 0)
-//            yaw_rate_ref += 3.3;
-//        if (yaw_rate_ref < 0)
-//            yaw_rate_ref -= 3.3;
-//    }
-    float yaw_rate_ref = -200*(float)(SPEKTRUM_getRUDDER()-SPEKTRUM_getYawNominal())/300;
-    if ((yaw_rate_ref > -13.2) && (yaw_rate_ref < 13.2)){
-        yaw_rate_ref = 0;
-    }
-    else{
-        if (yaw_rate_ref > 0)
-            yaw_rate_ref -= 13.2;
-        if (yaw_rate_ref < 0)
-            yaw_rate_ref += 13.2;
-    }
+    float yaw_angle_ref = -(float)(SPEKTRUM_getRUDDER()-SPEKTRUM_getRudderNominal());
+    if (yaw_angle_ref < 0)
+        yaw_angle_ref = (float)360/520*yaw_angle_ref;
+    else
+        yaw_angle_ref = (float)360/270*yaw_angle_ref;
+    // Yaw angle pre-filter
+    float yaw_ref_filtered = IO_filter_yaw_prefilter(yaw_angle_ref, speed_dt, IO_YAW_LPF_WN);
 
-    float yaw_control_sig = IO_yaw_control(speed_dt, yaw_rate_ref);
+    float yaw_control_sig = IO_yaw_control(speed_dt, yaw_ref_filtered);
     UINT8 yaw_pwm = PWM_PULSEWIDTH2BYTE((int)yaw_control_sig);
 
     /*****************/
@@ -751,25 +741,24 @@ void IO_speedController(void){
     IO_longitudinal = IO_limits(IO_PITCH_LOWER_LIMIT, IO_PITCH_UPPER_LIMIT, IO_longitudinal);
     /*****************/
 
-    IO_longitudinal = longitudinal;
-    IO_lateral = lateral;
-    IO_collective = collective;
+    IO_longitudinal = longitudinal_new;//longitudinal;
+    IO_lateral = lateral_new;//lateral;
+    IO_collective = heave_control_sig;
     #if defined(HELICOPTER_2)
-        heave_control_sig = collective;
+        IO_collective = collective;
     #endif
 
-
-    int servo_right = PWM_PULSEWIDTH2BYTE((int)(SPEKTRUM_RIGHT_NOM + IO_lateral + IO_longitudinal + heave_control_sig));
-    int servo_rear = PWM_PULSEWIDTH2BYTE((int)(SPEKTRUM_REAR_NOM + 2*IO_longitudinal - heave_control_sig));
-    int servo_rudder = PWM_PULSEWIDTH2BYTE(SPEKTRUM_getRUDDER());
-    int servo_left = PWM_PULSEWIDTH2BYTE((int)(SPEKTRUM_LEFT_NOM + IO_lateral - IO_longitudinal - heave_control_sig));
+    int servo_right = PWM_PULSEWIDTH2BYTE((int)(SPEKTRUM_getRightNominal() + IO_lateral + IO_longitudinal + IO_collective));
+    int servo_rear = PWM_PULSEWIDTH2BYTE((int)(SPEKTRUM_getRearNominal() + 2*IO_longitudinal - IO_collective));
+    int servo_rudder = PWM_PULSEWIDTH2BYTE(IO_getRudder());
+    int servo_left = PWM_PULSEWIDTH2BYTE((int)(SPEKTRUM_getLeftNominal() + IO_lateral - IO_longitudinal - IO_collective));
 
     UINT8 ESC_input = (UINT8) IO_limits(IO_PWM_SAT_MIN, IO_PWM_SAT_MAX, motor_pi);
 
     PWM_data[0] = ESC_input;
     PWM_data[1] = servo_right;
     PWM_data[2] = servo_rear;
-    PWM_data[3] = servo_rudder;//yaw_pwm;
+    PWM_data[3] = yaw_pwm;
     PWM_data[4] = PWM_PULSEWIDTH2BYTE(SPEKTRUM2PULSEWIDTH(422));
     PWM_data[5] = servo_left;
 
@@ -778,7 +767,9 @@ void IO_speedController(void){
     bool ack = PWM_sendPacket(auto_mode_on,PWM_data,6);
 //    IO_generalLog((float)SPEKTRUM_getRUDDER(), ITG3200_getz_float(), (float)servo_rudder);
 //    IO_generalLog(IO_yaw_control_sig, ITG3200_getz_float(), yaw_sense_sig);
-    IO_logVital(auto_mode_on, current_speed, altitude_ref, height_sensor);
+//    IO_logVital(ack, current_speed, altitude_ref, height_sensor);
+//    IO_logVital(ack, current_speed, IO_getAltitude(), ULTRASONIC_getHeave());
+//    IO_logRadio();
 }
 
 char IO_limit_PWM(int sig){
@@ -826,7 +817,7 @@ void IO_logVital(bool ack, float motor_speed, float altitude_ref,
                         yaw_ref_sig,
                         yaw_sense_sig,
                         IO_getBatteryVoltage(),
-                        SPEKTRUM_getChannel4(),
+                        SPEKTRUM_isAutoMode(),
                         SPEKTRUM_getTimeout(),
                         IO_get_time_ms());
 
@@ -883,6 +874,25 @@ void IO_logYawData(void){
 void IO_generalLog(float a1, float a2, float a3){
     int sdlen = sprintf(&IO_sd_buffer[0],"%.3f,%.3f,%.3f,%lu\r\n",
                 a1, a2, a3,IO_get_time_ms());
+    IO_logMessage(&IO_sd_buffer[0], sdlen);
+}
+
+void IO_logRadio(void){
+    int sdlen = sprintf(&IO_sd_buffer[0],"%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%lu\r\n",
+                (UINT16)IO_getESC(),
+                (UINT16)IO_getRight(),
+                (UINT16)IO_getRear(),
+                (UINT16)IO_getRudder(),
+                (UINT16)IO_getGyroGain(),
+                (UINT16)IO_getLeft(),
+                SPEKTRUM_getESC(),
+                SPEKTRUM_getRIGHT(),
+                SPEKTRUM_getREAR(),
+                SPEKTRUM_getRUDDER(),
+                SPEKTRUM_getGAIN(),
+                SPEKTRUM_getLEFT(),
+                IO_getRadioError(),
+                IO_get_time_ms());
     IO_logMessage(&IO_sd_buffer[0], sdlen);
 }
 
@@ -1028,6 +1038,38 @@ float IO_filter_speed(float speed_in, float dt, float wn){
     return IO_filteredRotorSpeed;
 }
 
+float IO_filter_altitude_prefilter(float alt_in, float dt, float wn){
+    static float alt_input[3] = {0}, alt_output[3] = {0};
+
+    float n0 = (dt*wn);
+    float n1 = (dt*wn);
+    float d0 = (dt*wn + 2);
+    float d1 = (dt*wn - 2);
+
+    IO_shiftData(&alt_input[0]);
+    alt_input[0] = alt_in;
+    IO_shiftData(&alt_output[0]);
+
+    IO_filter_1st_order(n0, n1, d0, d1, &alt_input[0], &alt_output[0]);
+    return alt_output[0];
+}
+
+float IO_filter_yaw_prefilter(float yaw_in, float dt, float wn){
+    static float yaw_input[3] = {0}, yaw_output[3] = {0};
+
+    float n0 = (dt*wn);
+    float n1 = (dt*wn);
+    float d0 = (dt*wn + 2);
+    float d1 = (dt*wn - 2);
+
+    IO_shiftData(&yaw_input[0]);
+    yaw_input[0] = yaw_in;
+    IO_shiftData(&yaw_output[0]);
+
+    IO_filter_1st_order(n0, n1, d0, d1, &yaw_input[0], &yaw_output[0]);
+    return yaw_output[0];
+}
+
 float IO_roll_control(float roll_reference, float dt){
     static float notch_input[3] = {0}, notch_output[3] = {0};
 
@@ -1069,38 +1111,14 @@ float IO_heave_control(float heave_reference, float height_sensor, float dt){
         &int_input[0], &int_output_[0], lower_limit_int, upper_limit_int);
 }
 
-float IO_yaw_control(float dt, float yaw_rate_ref){
+float IO_yaw_control(float dt, float yaw_ref){
     static float yaw_error[3] = {0}, yaw_input[3] = {0};
     static float int_input[3] = {0}, int_output_[3] = {0};
 
-    static float yaw_sense_cont = 0;
-    static bool first_enter = true;
-    static float yaw_ref = 0;
-    static float prev_yaw_rate_ref = 0;
-
-    if (first_enter){
-        yaw_sense_cont = IMU_getYaw();
-        yaw_ref = yaw_sense_cont;
-        first_enter = false;
-    }
-    else
-    {
-        int yaw_diff = (int)COM_round((yaw_sense_cont - IMU_getYaw())/(360));
-        yaw_sense_cont = IMU_getYaw() + yaw_diff*360;
-    }
-
-    // Compute yaw ref
-    yaw_ref = yaw_ref + dt*(yaw_rate_ref + prev_yaw_rate_ref)/2;
-//    yaw_ref = yaw_rate_ref;
-    prev_yaw_rate_ref = yaw_rate_ref;
-
     IO_shiftData(&yaw_error[0]);
     /** Convert this error to rad/s !!!**/
-    yaw_error[0] = (yaw_ref - yaw_sense_cont)*M_PI/180;
+    yaw_error[0] = (yaw_ref - IMU_getYaw())*M_PI/180;
     IO_shiftData(&yaw_input[0]);
-
-    yaw_ref_sig = yaw_ref;
-    yaw_sense_sig = yaw_sense_cont;
 
     // calculate derivative control signal
     float derivative_signal = IO_YAW_KP*IO_lead_lag(IO_YAW_OMEGA_LEAD, IO_YAW_OMEGA_LAG, dt, &yaw_error[0], &yaw_input[0]);
@@ -1111,7 +1129,7 @@ float IO_yaw_control(float dt, float yaw_rate_ref){
         &int_input[0], &int_output_[0], lower_limit_int, upper_limit_int);
     IO_yaw_control_sig = yaw_control_sig;
 
-    return (SPEKTRUM_getYawNominal() - yaw_control_sig);
+    return (SPEKTRUM_getRudderNominal() - yaw_control_sig);
 }
 
 
@@ -1167,23 +1185,6 @@ void __ISR(_CORE_TIMER_VECTOR, IPL7SRS) CoreTimerHandler(void)
         IO_sendData = true;
     }
 
-//    if ((IO_time_ms % IO_STATE_PROJECT) == 0){
-//        IO_stateProject = true;
-//    }
-
-//    // If data from pc takes too long set flag to switch to local control
-//    if ((IO_time_ms % IO_RX_TIMEOUT_CHECK) == 0){
-//        // if data is older than 1 second switch to local control
-//        if ((IO_time_ms - RN131_getLastRxTime())  > (1000))
-//            IO_setLocalControl(true);
-//        else
-//            IO_setLocalControl(false);
-//    }
-
-//    if (IO_time_ms == IO_DATA_TIME){
-//        IO_sendData = true;
-//    }
-
     if ((IO_time_ms % IO_SD_FLUSH) == 0){
         IO_sdFlush = true;
     }
@@ -1195,9 +1196,12 @@ void __ISR(_CORE_TIMER_VECTOR, IPL7SRS) CoreTimerHandler(void)
 
     // Take care of spektrum timeout. If new data arrives, SPEKTRUM_decodePacket() will
     // set autoMode appropriately
-    if (SPEKTRUM_timeoutInc()){
-        SPEKTRUM_setAutoMode(false);
-    }
+//    if (SPEKTRUM_timeoutInc()){
+//        SPEKTRUM_setAutoMode(false);
+//    }
+
+    SPEKTRUM_timeoutInc();
+    RN131_timeoutInc();
 
     // When rotor does not get updated, speed should be set to zero
     if (IO_timeoutSpeed()){
@@ -1279,19 +1283,21 @@ void __ISR(_CORE_TIMER_VECTOR, IPL7SRS) CoreTimerHandler(void)
  */
 void __ISR(_CHANGE_NOTICE_VECTOR, IPL7SRS) changeNotificationHandler(void)
 {
-    static int prev_time_stamp[7] = {0};
-    static bool first_run[7] = {true};
-    static bool pin_prev_state[7] = {low};
+    static int prev_time_stamp[10] = {0};
+    static bool first_run[10] = {true};
+    static bool pin_prev_state[10] = {low};
+    static unsigned char valid_data = 0b00000000;
 
     int temp_time;
 
     // clear the mismatch condition
     unsigned int port_val_D = mPORTDRead();
-//    unsigned int port_val_B = mPORTBRead();
+    unsigned int port_val_B = mPORTBRead();
 
     // clear the interrupt flag
     mCNClearIntFlag();
 
+#if defined(SETUP_RADIO_DETECT)
     // Measuring the period of the pulse...not the mark time
     if ((port_val_D & IO_OPTO_ENCODER_PIND) && (pin_prev_state[0] == low))
     {
@@ -1314,87 +1320,172 @@ void __ISR(_CHANGE_NOTICE_VECTOR, IPL7SRS) changeNotificationHandler(void)
         pin_prev_state[0] = low;
     }
 
-    if ((port_val_D & IO_GYRO_GAIN_PIND) && (pin_prev_state[1] == low))
+    if ((port_val_D & IO_GYROGAIN_PIND) && (pin_prev_state[1] == low))
     {
         pin_prev_state[1] = high;
         prev_time_stamp[1] = ReadCoreTimer();
     }
-    if(!(port_val_D & IO_GYRO_GAIN_PIND) && (pin_prev_state[1] == high))
+    if(!(port_val_D & IO_GYROGAIN_PIND) && (pin_prev_state[1] == high))
     {
         temp_time = ReadCoreTimer();
-        IO_gyro_gain_dt = (unsigned int) ReadCoreTimer() - (int) prev_time_stamp[1];
+        IO_gyrogain_dt = (unsigned int) ReadCoreTimer() - (int) prev_time_stamp[1];
         prev_time_stamp[1] = temp_time;
-        IO_gyro_gain_update = true;
         pin_prev_state[1] = low;
+
+        if ((IO_gyrogain_dt > CN_PWM_MAX) || (IO_gyrogain_dt < CN_PWM_MIN))
+            valid_data &= 0b11111110;
+        else
+            valid_data |= 0b00000001;
     }
 
-//    if ((port_val_D & IO_SERVO_LEFT_PIND) && (pin_prev_state[2] == low))
-//    {
-//        pin_prev_state[2] = high;
-//        prev_time_stamp[2] = ReadCoreTimer();
-//    }
-//    if(!(port_val_D & IO_SERVO_LEFT_PIND) && (pin_prev_state[2] == high))
-//    {
-//        temp_time = ReadCoreTimer();
-//        IO_servo_left_dt = (unsigned int) ReadCoreTimer() - (int) prev_time_stamp[2];
-//        prev_time_stamp[2] = temp_time;
-//        IO_servo_left_update = true;
-//        pin_prev_state[2] = low;
-//    }
-//
-//    if ((port_val_B & IO_ESC_PINB) && (pin_prev_state[3] == low))
-//    {
-//        pin_prev_state[3] = high;
-//        prev_time_stamp[3] = ReadCoreTimer();
-//    }
-//    if(!(port_val_B & IO_ESC_PINB) && (pin_prev_state[3] == high))
-//    {
-//        temp_time = ReadCoreTimer();
-//        IO_esc_dt = (unsigned int) ReadCoreTimer() - (int) prev_time_stamp[3];
-//        prev_time_stamp[3] = temp_time;
-//        IO_esc_update = true;
-//        pin_prev_state[3] = low;
-//    }
-//
-//    if ((port_val_B & IO_SERVO_RIGHT_PINB) && (pin_prev_state[4] == low))
-//    {
-//        pin_prev_state[4] = high;
-//        prev_time_stamp[4] = ReadCoreTimer();
-//    }
-//    if(!(port_val_B & IO_SERVO_RIGHT_PINB) && (pin_prev_state[4] == high))
-//    {
-//        temp_time = ReadCoreTimer();
-//        IO_servo_right_dt = (unsigned int) ReadCoreTimer() - (int) prev_time_stamp[4];
-//        prev_time_stamp[4] = temp_time;
-//        IO_servo_right_update = true;
-//        pin_prev_state[4] = low;
-//    }
-//
-//    if ((port_val_B & IO_SERVO_REAR_PINB) && (pin_prev_state[5] == low))
-//    {
-//        pin_prev_state[5] = high;
-//        prev_time_stamp[5] = ReadCoreTimer();
-//    }
-//    if(!(port_val_B & IO_SERVO_REAR_PINB) && (pin_prev_state[5] == high))
-//    {
-//        temp_time = ReadCoreTimer();
-//        IO_servo_rear_dt = (unsigned int) ReadCoreTimer() - (int) prev_time_stamp[5];
-//        prev_time_stamp[5] = temp_time;
-//        IO_servo_rear_update = true;
-//        pin_prev_state[5] = low;
-//    }
-//
-//    if ((port_val_B & IO_RUDDER_PINB) && (pin_prev_state[6] == low))
-//    {
-//        pin_prev_state[6] = high;
-//        prev_time_stamp[6] = ReadCoreTimer();
-//    }
-//    if(!(port_val_B & IO_RUDDER_PINB) && (pin_prev_state[6] == high))
-//    {
-//        temp_time = ReadCoreTimer();
-//        IO_rudder_dt = (unsigned int) ReadCoreTimer() - (int) prev_time_stamp[6];
-//        prev_time_stamp[6] = temp_time;
-//        IO_rudder_update = true;
-//        pin_prev_state[6] = low;
-//    }
+    if ((port_val_D & IO_ULTRASONIC_PIND) && (pin_prev_state[2] == low))
+    {
+        pin_prev_state[2] = high;
+        prev_time_stamp[2] = ReadCoreTimer();
+    }
+    if(!(port_val_D & IO_ULTRASONIC_PIND) && (pin_prev_state[2] == high))
+    {
+        temp_time = ReadCoreTimer();
+        IO_ultrasonic_dt = (unsigned int) ReadCoreTimer() - (int) prev_time_stamp[2];
+        prev_time_stamp[2] = temp_time;
+        pin_prev_state[2] = low;
+
+        if (IO_ultrasonic_dt > IO_ULTRASONIC_DT_MAX)
+            IO_ultrasonic_dt = IO_ULTRASONIC_DT_MAX;
+    }
+
+    if ((port_val_B & IO_ESC_PINB) && (pin_prev_state[3] == low))
+    {
+        pin_prev_state[3] = high;
+        prev_time_stamp[3] = ReadCoreTimer();
+    }
+    if(!(port_val_B & IO_ESC_PINB) && (pin_prev_state[3] == high))
+    {
+        temp_time = ReadCoreTimer();
+        IO_esc_dt = (unsigned int) ReadCoreTimer() - (int) prev_time_stamp[3];
+        prev_time_stamp[3] = temp_time;
+        pin_prev_state[3] = low;
+
+        if ((IO_esc_dt > CN_PWM_MAX) || (IO_esc_dt < CN_PWM_MIN))
+            valid_data &= 0b11111101;
+        else
+            valid_data |= 0b00000010;
+    }
+
+    if ((port_val_B & IO_RIGHT_PINB) && (pin_prev_state[4] == low))
+    {
+        pin_prev_state[4] = high;
+        prev_time_stamp[4] = ReadCoreTimer();
+    }
+    if(!(port_val_B & IO_RIGHT_PINB) && (pin_prev_state[4] == high))
+    {
+        temp_time = ReadCoreTimer();
+        IO_right_dt = (unsigned int) ReadCoreTimer() - (int) prev_time_stamp[4];
+        prev_time_stamp[4] = temp_time;
+        pin_prev_state[4] = low;
+
+        if ((IO_right_dt > CN_PWM_MAX) || (IO_right_dt < CN_PWM_MIN))
+            valid_data &= 0b11111011;
+        else
+            valid_data |= 0b00000100;
+    }
+
+    if ((port_val_B & IO_REAR_PINB) && (pin_prev_state[5] == low))
+    {
+        pin_prev_state[5] = high;
+        prev_time_stamp[5] = ReadCoreTimer();
+    }
+    if(!(port_val_B & IO_REAR_PINB) && (pin_prev_state[5] == high))
+    {
+        temp_time = ReadCoreTimer();
+        IO_rear_dt = (unsigned int) ReadCoreTimer() - (int) prev_time_stamp[5];
+        prev_time_stamp[5] = temp_time;
+        pin_prev_state[5] = low;
+
+        if ((IO_rear_dt > CN_PWM_MAX) || (IO_rear_dt < CN_PWM_MIN))
+            valid_data &= 0b11110111;
+        else
+            valid_data |= 0b00001000;
+    }
+
+    if ((port_val_B & IO_RUDDER_PINB) && (pin_prev_state[6] == low))
+    {
+        pin_prev_state[6] = high;
+        prev_time_stamp[6] = ReadCoreTimer();
+    }
+    if(!(port_val_B & IO_RUDDER_PINB) && (pin_prev_state[6] == high))
+    {
+        temp_time = ReadCoreTimer();
+        IO_rudder_dt = (unsigned int) ReadCoreTimer() - (int) prev_time_stamp[6];
+        prev_time_stamp[6] = temp_time;
+        pin_prev_state[6] = low;
+
+        if ((IO_rudder_dt > CN_PWM_MAX) || (IO_rudder_dt < CN_PWM_MIN))
+            valid_data &= 0b11101111;
+        else
+            valid_data |= 0b00010000;
+    }
+
+    if ((port_val_B & IO_LEFT_PINB) && (pin_prev_state[7] == low))
+    {
+        pin_prev_state[7] = high;
+        prev_time_stamp[7] = ReadCoreTimer();
+    }
+    if(!(port_val_B & IO_LEFT_PINB) && (pin_prev_state[7] == high))
+    {
+        temp_time = ReadCoreTimer();
+        IO_left_dt = (unsigned int) ReadCoreTimer() - (int) prev_time_stamp[7];
+        prev_time_stamp[7] = temp_time;
+        pin_prev_state[7] = low;
+
+        if ((IO_left_dt > CN_PWM_MAX) || (IO_left_dt < CN_PWM_MIN))
+            valid_data &= 0b11011111;
+        else
+            valid_data |= 0b00100000;
+    }
+
+    if (valid_data == 0b00111111){
+        RADIO_ERROR = false;
+    }
+    else{
+        RADIO_ERROR = true;
+    }
+    
+#else
+    // Measuring the period of the pulse...not the mark time
+    if ((port_val_D & IO_OPTO_ENCODER_PIND) && (pin_prev_state[0] == low))
+    {
+        pin_prev_state[0] = high;
+        if (first_run[0])
+        {
+            prev_time_stamp[0] = ReadCoreTimer();
+            first_run[0] = false;
+        }
+        else
+        {
+            temp_time = ReadCoreTimer();
+            IO_rotor_speed_dt = (unsigned int) ReadCoreTimer() - (int) prev_time_stamp[0];
+            IO_rotor_speed_update = 0;
+            prev_time_stamp[0] = temp_time;
+        }
+    }
+    if (!(port_val_D & IO_OPTO_ENCODER_PIND) && (pin_prev_state[0] == high))
+    {
+        pin_prev_state[0] = low;
+    }
+
+    if ((port_val_D & IO_ULTRASONIC_PIND) && (pin_prev_state[2] == low))
+    {
+        pin_prev_state[2] = high;
+        prev_time_stamp[2] = ReadCoreTimer();
+    }
+    if(!(port_val_D & IO_ULTRASONIC_PIND) && (pin_prev_state[2] == high))
+    {
+        temp_time = ReadCoreTimer();
+        IO_ultrasonic_dt = (unsigned int) ReadCoreTimer() - (int) prev_time_stamp[2];
+        prev_time_stamp[2] = temp_time;
+        pin_prev_state[2] = low;
+    }
+#endif
+
 }

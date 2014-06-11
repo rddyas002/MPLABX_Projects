@@ -72,10 +72,7 @@ int main(int argc, char** argv) {
     ULTRASONIC_setup();
     PWM_initialize();
     SPEKTRUMRX_initialize();
-
-    #if defined(SETUP_RADIO_DETECT)
-        IO_changeNotificationSetup();
-    #endif
+    IO_changeNotificationSetup();
 
     // initialize SD file system
     IO_initialize_FS();
@@ -85,7 +82,7 @@ int main(int argc, char** argv) {
     float dt = 20e-3;
     UINT32 prev_time = 0;
 
-    while(1){
+    while(1){        
         #if defined(USE_USB)
             if(USB_BUS_SENSE && (USBGetDeviceState() == DETACHED_STATE))
             {
@@ -142,9 +139,9 @@ int main(int argc, char** argv) {
             data_pack[5] = ADXL345_getz();
             data_pack[6] = ULTRASONIC_getData();
             data_pack[7] = IO_getBatteryVoltage();
-            data_pack[8] = SPEKTRUM_getChannel3();;
-            data_pack[9] = SPEKTRUM_getChannel5();
-            data_pack[10] = SPEKTRUM_getChannel1();
+            data_pack[8] = IMU_getRoll16BIT();;
+            data_pack[9] = IMU_getPitch16BIT();
+            data_pack[10] = IMU_getYaw16BIT();
             data_pack[11] = SPEKTRUM_getChannel2();
             data_pack[12] = SPEKTRUM_getChannel0();
             data_pack[13] = SPEKTRUM_getChannel4();;
@@ -155,9 +152,9 @@ int main(int argc, char** argv) {
             dt = (current_time - prev_time)*1e-3;
             if (dt > 20e-3)
                 dt = 20e-3;
-
-            IMU_correctGyro(dt);
+            IO_DEBUG_LAT_HIGH();
             IMU_propagateState(dt);
+            IO_DEBUG_LAT_LOW();
             prev_time = current_time;
         }
 
@@ -194,6 +191,7 @@ int main(int argc, char** argv) {
 
         if (IO_getCloseFiles()){
             IO_terminate_FS();
+            IO_setCloseFiles(false);
         }
     }
 

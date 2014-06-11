@@ -26,7 +26,12 @@ UINT16 SPEKTRUM_RUDDER = 1500;
 UINT16 SPEKTRUM_GAIN = 1500;
 UINT16 SPEKTRUM_LEFT = 1500;
 
+UINT16 SPEKTRUM_ESC_NOMINAL = 0;
+UINT16 SPEKTRUM_RIGHT_NOMINAL = 0;
+UINT16 SPEKTRUM_REAR_NOMINAL = 0;
 UINT16 SPEKTRUM_RUDDER_NOMINAL = 0;
+UINT16 SPEKTRUM_GAIN_NOMINAL = 0;
+UINT16 SPEKTRUM_LEFT_NOMINAL = 0;
 
 void SPEKTRUMRX_initialize(void){
 
@@ -48,28 +53,62 @@ void SPEKTRUMRX_initialize(void){
     INTSetVectorPriority(INT_VECTOR_UART(SPEKTRUM_UART), SPEKTRUM_INT_PRIORITY);
     INTSetVectorSubPriority(INT_VECTOR_UART(SPEKTRUM_UART), SPEKTRUM_INT_SUBPRIORITY);
 
-    SPEKTRUM_findYawNominal();
+    SPEKTRUM_findNominal();
 }
 
-UINT16 SPEKTRUM_findYawNominal(void){
+void SPEKTRUM_findNominal(void){
     int i = 0;
+    UINT32 SPEKTRUM_ESC_SUM = 0;
+    UINT32 SPEKTRUM_RIGHT_SUM = 0;
+    UINT32 SPEKTRUM_REAR_SUM = 0;
     UINT32 SPEKTRUM_RUDDER_SUM = 0;
-    // wait for 10 complete packets
+    UINT32 SPEKTRUM_GAIN_SUM = 0;
+    UINT32 SPEKTRUM_LEFT_SUM = 0;
 
+    // wait for 20 complete packets
     for (i = 0; i < 20; i++){
         while(!SPEKTRUM_isPacketComplete());
         SPEKTRUM_decodePacket();
+        SPEKTRUM_ESC_SUM += SPEKTRUM_ESC;
+        SPEKTRUM_RIGHT_SUM += SPEKTRUM_RIGHT;
+        SPEKTRUM_REAR_SUM += SPEKTRUM_REAR;
         SPEKTRUM_RUDDER_SUM += SPEKTRUM_RUDDER;
+        SPEKTRUM_GAIN_SUM += SPEKTRUM_GAIN;
+        SPEKTRUM_LEFT_SUM += SPEKTRUM_LEFT;
         // Indicate packet complete to prevent redundant decoding
         SPEKTRUM_setPacketComplete(false);
     }
 
+    SPEKTRUM_ESC_NOMINAL = (UINT16)(SPEKTRUM_ESC_SUM/20);
+    SPEKTRUM_RIGHT_NOMINAL = (UINT16)(SPEKTRUM_RIGHT_SUM/20);
+    SPEKTRUM_REAR_NOMINAL = (UINT16)(SPEKTRUM_REAR_SUM/20);
     SPEKTRUM_RUDDER_NOMINAL = (UINT16)(SPEKTRUM_RUDDER_SUM/20);
+    SPEKTRUM_GAIN_NOMINAL = (UINT16)(SPEKTRUM_GAIN_SUM/20);
+    SPEKTRUM_LEFT_NOMINAL = (UINT16)(SPEKTRUM_LEFT_SUM/20);
+}
+
+UINT16 SPEKTRUM_getESCNominal(void){
+    return SPEKTRUM_ESC_NOMINAL;
+}
+
+UINT16 SPEKTRUM_getRightNominal(void){
+    return SPEKTRUM_RIGHT_NOMINAL;
+}
+
+UINT16 SPEKTRUM_getRearNominal(void){
+    return SPEKTRUM_REAR_NOMINAL;
+}
+
+UINT16 SPEKTRUM_getRudderNominal(void){
     return SPEKTRUM_RUDDER_NOMINAL;
 }
 
-UINT16 SPEKTRUM_getYawNominal(void){
-    return SPEKTRUM_RUDDER_NOMINAL;
+UINT16 SPEKTRUM_getGainNominal(void){
+    return SPEKTRUM_GAIN_NOMINAL;
+}
+
+UINT16 SPEKTRUM_getLeftNominal(void){
+    return SPEKTRUM_LEFT_NOMINAL;
 }
 
 void SPEKTRUM_decodePacket(void){
@@ -231,9 +270,7 @@ void __ISR(_UART_3_VECTOR, ipl6) UART_SPEKTRUM( void)
             // If complete packet has been received, form words and register data
             if (SPEKTRUM_rawData.index == 14)
             {
-                IO_DEBUG_LAT_HIGH();
                 SPEKTRUM_decodePacket();
-                IO_DEBUG_LAT_LOW();
                 SPEKTRUM_rawData.packet_complete = true;
             }
 

@@ -91,12 +91,25 @@ typedef struct {
 
 // RADIO input capture pins
 #define IO_OPTO_ENCODER_PIND           (0x40)
-#define IO_GYRO_GAIN_PIND              (0x80)
-#define IO_SERVO_LEFT_PIND             (0x2000)
-#define IO_ESC_PINB                    (0x10)
-#define IO_SERVO_RIGHT_PINB            (0x8)
-#define IO_SERVO_REAR_PINB             (0x4)
-#define IO_RUDDER_PINB                 (0x2)
+#define IO_GYROGAIN_PIND               (0x80)
+#define IO_ULTRASONIC_PIND             (0x2000)
+
+// PGEC1/AN1/CN3/RB1 (24): ESC
+// AN2/C2IN-/CN4/RB2 (23): RIGHT
+// AN3/C2IN+/CN5/RB3 (22): REAR
+// AN4/C1IN-/CN6/RB4 (21): RUDDER
+// AN5/C1IN+/V BUSON /CN7/RB5 (20): LEFT
+#define IO_ESC_PINB                    (0x02)
+#define IO_RIGHT_PINB                  (0x04)
+#define IO_REAR_PINB                   (0x08)
+#define IO_RUDDER_PINB                 (0x10)
+#define IO_LEFT_PINB                   (0x20)
+
+#define CN_PWM_MAX                      (84000) // equivalent to 2.2ms
+#define CN_PWM_MIN                      (32000) // equivalent to 0.8ms
+
+#define IO_ULTRASONIC_DT_MAX            (1774800)
+#define IO_ULTRASONIC_DT_MIN            (37120)
 
 #define IO_RPM_2_RAD_PER_SEC        (2*M_PI/60)
 
@@ -116,7 +129,6 @@ IO_EXTERN IO_SYSTEM_STATE IO_getSystemState(void);
 IO_EXTERN void IO_setSystemState(IO_SYSTEM_STATE state);
 IO_EXTERN UINT16 IO_getBatteryVoltage(void);
 IO_EXTERN void IO_delayms(unsigned int num_ms_delay);
-IO_EXTERN bool IO_debugMessage(char * str);
 IO_EXTERN void IO_initialize_FS(void);
 IO_EXTERN bool IO_initializeFile(IO_file * IO_file_ds, const char * IO_file_name);
 IO_EXTERN void IO_terminate_FS(void);
@@ -125,6 +137,7 @@ IO_EXTERN void IO_logMessage(char * str, UINT16 len);
 IO_EXTERN bool IO_getSDFlush(void);
 IO_EXTERN void IO_setSDFlush(bool val);
 IO_EXTERN bool IO_getCloseFiles(void);
+IO_EXTERN void IO_setCloseFiles(bool val);
 IO_EXTERN void IO_LED_init(void);
 IO_EXTERN void IO_leds_on(float power);
 IO_EXTERN volatile UINT32 IO_get_time_ms(void);
@@ -143,24 +156,24 @@ IO_EXTERN void IO_logPitchData(void);
 IO_EXTERN void IO_logRollData(void);
 IO_EXTERN void IO_logYawData(void);
 IO_EXTERN void IO_generalLog(float a1, float a2, float a3);
+IO_EXTERN void IO_logRadio(void);
+IO_EXTERN bool IO_getRadioError(void);
 IO_EXTERN bool IO_getLEDState(void);
 
-IO_EXTERN float IO_getRudder_dt(void);
-IO_EXTERN float IO_getServoLeft_dt(void);
-IO_EXTERN float IO_getServoRight_dt(void);
-IO_EXTERN float IO_getServoRear_dt(void);
-IO_EXTERN float IO_getESC_dt(void);
 IO_EXTERN float IO_getGyroGain_dt(void);
+IO_EXTERN float IO_getUltrasonic_dt(void);
 IO_EXTERN unsigned short int IO_getRotorSpeed(void);
 IO_EXTERN float IO_getFilteredRotorSpeed(void);
 IO_EXTERN  char IO_limit_PWM(int sig);
 
-IO_EXTERN UINT16 IO_getRudder(void);
-IO_EXTERN UINT16 IO_getServoLeft(void);
-IO_EXTERN UINT16 IO_getServoRight(void);
-IO_EXTERN UINT16 IO_getServoRear(void);
-IO_EXTERN UINT16 IO_getESC(void);
 IO_EXTERN UINT16 IO_getGyroGain(void);
+IO_EXTERN UINT16 IO_getUltrasonic(void);
+IO_EXTERN UINT16 IO_getESC(void);
+IO_EXTERN UINT16 IO_getRight(void);
+IO_EXTERN UINT16 IO_getRear(void);
+IO_EXTERN UINT16 IO_getRudder(void);
+IO_EXTERN UINT16 IO_getLeft(void);
+IO_EXTERN float IO_getAltitude(void);
 
 IO_EXTERN float IO_limits(float lower, float upper, float input);
 IO_EXTERN void IO_filter_1st_order(float n1, float n2, float d1, float d2, float input[3], float output[3]);
@@ -170,7 +183,7 @@ IO_EXTERN float IO_PI_with_limits(float Kp, float omega_Ti, float Ts, float curr
         float filter_input[3], float filter_output[3], float lower_limit, float upper_limit);
 IO_EXTERN float IO_lead_lag(float omega_lead, float omega_lag, float Ts, float filter_input[3], float filter_output[3]);
 IO_EXTERN float IO_heave_control(float heave_reference, float height_sensor, float dt);
-IO_EXTERN float IO_yaw_control(float dt, float yaw_rate_ref);
+IO_EXTERN float IO_yaw_control(float dt, float yaw_ref);
 
 IO_EXTERN void IO_PIDComputation(IO_PID_TYPE pidtype, float Kp, float omega_Td, float omega_Ti, float alpha, float Ts,float u[3], float e[3]);
 IO_EXTERN void IO_PID_with_limits(float Kp, float omega_lead, float omega_Ti, float alpha, float Ts,
@@ -183,6 +196,8 @@ IO_EXTERN float IO_pitch_control(float pitch_reference, float dt);
 IO_EXTERN void IO_shiftData(float data[3]);
 IO_EXTERN float IO_landingRefGen(float dt, bool reset);
 IO_EXTERN float IO_filter_speed(float speed_in, float dt, float wn);
+IO_EXTERN float IO_filter_altitude_prefilter(float alt_in, float dt, float wn);
+IO_EXTERN float IO_filter_yaw_prefilter(float yaw_in, float dt, float wn);
 
 IO_EXTERN bool IO_getStateProject(void);
 IO_EXTERN void IO_setStateProject(bool val);
