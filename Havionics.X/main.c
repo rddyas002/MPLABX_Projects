@@ -44,6 +44,7 @@
 #pragma config DEBUG = OFF
 
 unsigned short int data_pack[17] = {0};
+volatile UINT32 IO_LEDON_TIME;
 
 int main(int argc, char** argv) {
     // Disable JTAG to enable corresponding IO pin functionality
@@ -81,52 +82,23 @@ int main(int argc, char** argv) {
 
     float dt = 20e-3;
     UINT32 prev_time = 0;
+    UINT32 count = 0;
 
     while(1){        
         #if defined(USE_USB)
-            if(USB_BUS_SENSE && (USBGetDeviceState() == DETACHED_STATE))
-            {
+            if(USB_BUS_SENSE && (USBGetDeviceState() == DETACHED_STATE)){
                 USBDeviceAttach();
             }            
             ProcessIO();
-            if (count++ > 1000000){
+
+            if (USBUSARTIsTxTrfReady() && RN131_dataAvailable()){
+                putUSBUSART(RN131_getRxDataPointer(), RN131_getRxDataSize());
+                CDCTxService();
+                RN131_setDataAvailable(false);
+                RN131_setRxMsgLenToZero();
                 count = 0;
-                
-                if (USBUSARTIsTxTrfReady() && RN131_dataAvailable()){
-                    putUSBUSART(RN131_getRxDataPointer(), RN131_getRxDataSize());
-                    CDCTxService();
-                    RN131_setDataAvailable(false);
-                    RN131_setRxMsgLenToZero();
-                    count = 0;
-                }
-
-//                int usblen = sprintf(usb_buffer_temp,"%d,%d,%d,%d,%d,%d,0x%4X\r\n",
-//                        SPEKTRUM_getChannel1(),
-//                        SPEKTRUM_getChannel2(),
-//                        SPEKTRUM_getChannel3(),
-//                        SPEKTRUM_getChannel4(),
-//                        SPEKTRUM_getChannel5(),
-//                        SPEKTRUM_getChannel6(),
-//                        SPEKTRUM_getChannel7());
-//                putUSBUSART(&usb_buffer_temp[0], usblen);
             }
-
-        #endif
-
-//        if (IO_get_change_LED()){
-//            if (inc){
-//                if (count2++ > 100)
-//                    inc = false;
-//            }
-//            else{
-//                if (count2-- < 0)
-//                    inc = true;
-//            }
-//            float brightness = 6 + 0.54*count2;
-//            IO_leds_on(brightness);
-//            IO_set_change_LED(false);
-//        }
-
+        #else
         if (IO_getSendData()){
             IO_setSendData(false);
             ITG3200_readData();
@@ -142,27 +114,30 @@ int main(int argc, char** argv) {
             data_pack[8] = IMU_getRoll16BIT();;
             data_pack[9] = IMU_getPitch16BIT();
             data_pack[10] = IMU_getYaw16BIT();
-            data_pack[11] = SPEKTRUM_getChannel2();
-            data_pack[12] = SPEKTRUM_getChannel0();
-            data_pack[13] = SPEKTRUM_getChannel4();;
+            data_pack[11] = RN131_getTx();
+            data_pack[12] = RN131_getTy();
+            data_pack[13] = RN131_getTz();
             data_pack[14] = IO_getRotorSpeed();
             RN131_SendDataPacket(data_pack, 15);
 
             UINT32 current_time = IO_get_time_ms();
+
             dt = (current_time - prev_time)*1e-3;
             if (dt > 20e-3)
                 dt = 20e-3;
-            IO_DEBUG_LAT_HIGH();
+            
             IMU_propagateState(dt);
-            IO_DEBUG_LAT_LOW();
+
+            IO_Control();
+
             prev_time = current_time;
         }
 
-        if (SPEKTRUM_isPacketComplete()){
-            SPEKTRUM_decodePacket();
-            // Indicate packet complete to prevent redundant decoding
-            SPEKTRUM_setPacketComplete(false);
-        }
+//        if (SPEKTRUM_isPacketComplete()){
+//            SPEKTRUM_decodePacket();
+//            // Indicate packet complete to prevent redundant decoding
+//            SPEKTRUM_setPacketComplete(false);
+//        }
 
         if (SPEKTRUM_isAutoMode()){
             IO_setSystemState(OKAY);
@@ -173,17 +148,6 @@ int main(int argc, char** argv) {
             IO_setupPWM_default();
         }
 
-        if (IO_getPWMUpdate()){
-            IO_setPWMUpdate(false);
-            IO_speedController();
-        }
-//
-//        if (RN131_dataAvailable() && RN131_dataMatch()){
-//            //RN131_decodeRxPacket();
-//            //RN131_logData();
-//            RN131_setDataAvailable(false);
-//        }
-//
         if (IO_getSDFlush()){
             IO_flush_FS();
             IO_setSDFlush(false);
@@ -193,6 +157,7 @@ int main(int argc, char** argv) {
             IO_terminate_FS();
             IO_setCloseFiles(false);
         }
+    #endif
     }
 
     IO_terminate_FS();

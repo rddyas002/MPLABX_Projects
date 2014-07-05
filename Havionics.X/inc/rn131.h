@@ -25,10 +25,10 @@
 #define RN131_DATA_PERIOD_DELTA (50000)
 #define RN131_RX_TIMEOUT        (100)   // ms
 
-#define RN131_DMA_TX_PRIORITY DMA_CHN_PRI3
-#define RN131_DMA_RX_PRIORITY DMA_CHN_PRI1
-#define RN131_DMA_TX_CHANNEL DMA_CHANNEL3
-#define RN131_DMA_RX_CHANNEL DMA_CHANNEL4
+#define RN131_DMA_TX_PRIORITY   DMA_CHN_PRI2
+#define RN131_DMA_RX_PRIORITY   DMA_CHN_PRI3
+#define RN131_DMA_TX_CHANNEL    DMA_CHANNEL3
+#define RN131_DMA_RX_CHANNEL    DMA_CHANNEL4
 
 #define RN131_ENTER_COMMAND "$$$"
 #define RN131_EXIT "exit\r"
@@ -40,6 +40,8 @@
 #define RN131_SAVE "save\r"
 #define RN131_REBOOT "reboot\r"
 #define RN131_EVERYTHING "get everything\r"
+
+typedef unsigned char UCHAR;
 
 typedef struct{
     char tx_buffer[RN131_BUFFER_SIZE];
@@ -54,12 +56,35 @@ typedef struct{
 
     // wifi settings
     bool DMA_MODE;
+
+    UINT32 receive_time;
+    UINT32 send_time;
+
+    UINT32 timeout_rx;  // time since last receive
 }RN131_data_struct;
 
+typedef struct{
+    INT16 translation_x;
+    INT16 translation_y;
+    INT16 translation_z;
+
+    INT16 velocity_x;
+    INT16 velocity_y;
+    INT16 velocity_z;
+
+    float quaternion_0;
+    float quaternion_1;
+    float quaternion_2;
+    float quaternion_3;
+
+    UINT16 sequence;
+
+    UINT32 timestamp;
+}RN131_states_struct;
+
 RN131_EXTERN void RN131_setupDMA(void);
-RN131_EXTERN bool RN131_dataAvailable(void);
-RN131_EXTERN void RN131_decodeRxPacket(void);
-RN131_EXTERN void RN131_setDataAvailable(bool val);
+RN131_EXTERN void RN131_decodeBinary(const char * rx_data);
+RN131_EXTERN int RN131_strlen(char data[], int max_len, char match);
 RN131_EXTERN char * RN131_getRxDataPointer(void);
 RN131_EXTERN BYTE RN131_getRxDataSize(void);
 RN131_EXTERN void RN131_setRxIndexToZero(void);
@@ -70,15 +95,22 @@ RN131_EXTERN void RN131_writeBuffer(char * data, BYTE len);
 RN131_EXTERN void RN131_setRxMsgLenToZero(void);
 RN131_EXTERN void RN131_SendDataPacket(unsigned short int data[], unsigned char data_length);
 RN131_EXTERN void RN131_logData(void);
-RN131_EXTERN void RN131_logSendTime(void);
-RN131_EXTERN UINT32 RN131_getSendTime(void);
-RN131_EXTERN UINT32 RN131_getLastRxTime(void);
-RN131_EXTERN bool RN131_dataMatch(void);
 RN131_EXTERN void RN131_logDataWireless(float a1, float a2, float a3);
-RN131_EXTERN float * RN131_getQuaternion(void);
+RN131_EXTERN float RN131_get_tx(void);
+RN131_EXTERN float RN131_get_ty(void);
+RN131_EXTERN float RN131_get_tz(void);
+RN131_EXTERN short int RN131_getTx(void);
+RN131_EXTERN short int RN131_getTy(void);
+RN131_EXTERN short int RN131_getTz(void);
+RN131_EXTERN float RN131_getQuaternion_q0(void);
+RN131_EXTERN float RN131_getQuaternion_q1(void);
+RN131_EXTERN float RN131_getQuaternion_q2(void);
+RN131_EXTERN float RN131_getQuaternion_q3(void);
 RN131_EXTERN bool RN131_timeoutInc(void);
 RN131_EXTERN void RN131_clearTimeout(void);
 RN131_EXTERN bool RN131_getTimeout(void);
+RN131_EXTERN bool RN131_ASCIIHex2Nibble(const char * hex, UCHAR * nibble);
+RN131_EXTERN bool RN131_ASCIIHex2Byte(const char * hex, UCHAR * byte);
 
 // RN131 specific commands
 RN131_EXTERN void RN131_enterCmdMode(void);

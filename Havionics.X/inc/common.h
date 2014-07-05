@@ -16,12 +16,6 @@
 // number of times to try writing config
 #define IMU_TRYCONFIG 3
 
-#define HELICOPTER_1
-
-#if defined (HELICOPTER_2)
-    #define LV_EZ0
-#endif
-
 static inline void wait(unsigned int count){
     int i;
     for (i = 0; i < count; i++);

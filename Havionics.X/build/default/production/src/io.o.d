@@ -16,4 +16,6 @@ src/../inc/imu.h  \
  src/../inc/../inc/itg3200.h  \
 src/../inc/../inc/common.h  \
  src/../inc/../inc/adxl345.h  \
-src/../inc/../inc/HardwareProfile.h 
+src/../inc/../inc/HardwareProfile.h  \
+ src/../inc/../inc/rn131.h  \
+src/../inc/../inc/io.h 

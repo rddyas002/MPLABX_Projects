@@ -27,6 +27,8 @@ main.c  \
  /home/yashren/MPLABXProjects/Havionics.X/inc/../inc/common.h  \
  /home/yashren/MPLABXProjects/Havionics.X/inc/../inc/adxl345.h  \
  /home/yashren/MPLABXProjects/Havionics.X/inc/../inc/HardwareProfile.h  \
+ /home/yashren/MPLABXProjects/Havionics.X/inc/../inc/rn131.h  \
+ /home/yashren/MPLABXProjects/Havionics.X/inc/../inc/io.h  \
  /home/yashren/MPLABXProjects/Havionics.X/inc/ultrasonic.h  \
  /home/yashren/MPLABXProjects/Havionics.X/inc/pwm.h  \
  /home/yashren/MPLABXProjects/Havionics.X/inc/spektrumRX.h 

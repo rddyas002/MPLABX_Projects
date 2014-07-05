@@ -34,6 +34,7 @@ void ProcessIO(void)
 
     if(USBUSARTIsTxTrfReady())
     {
+        // Get data from USB port
 	numBytesRead = getsUSBUSART(USB_In_Buffer,64);
 
 //        if (numBytesRead != 0){
@@ -60,7 +61,9 @@ void ProcessIO(void)
 
 	if(numBytesRead != 0)
 	{
-            RN131_writeBuffer(&USB_Out_Buffer[0],numBytesRead);
+            // Pass usb data to wifi module
+            RN131_writeBuffer(&USB_In_Buffer[0],numBytesRead);
+
             switch(USB_Out_Buffer[0]){
                 case 'a':
                     RN131_enterCmdMode();
@@ -86,7 +89,6 @@ void ProcessIO(void)
                 case 'h':
                     RN131_exitCmdMode();
                     break;
-
             }
 	}
     }

@@ -91,14 +91,6 @@ void __ISR(_DMA1_VECTOR, ipl3) ultrasonicDmaHandler(void)
 			ULTRASONIC_distance = atoi(distance_s);
                         
                         float Ultrasonic_distance = 0;
-                        #if defined(LV_EZ0)
-                            // This is in inches...convert to meters
-                            Ultrasonic_distance = (float)ULTRASONIC_distance*0.0254;
-                            // Convert this to centimeters for PC
-                            ULTRASONIC_distance = (unsigned short int) (Ultrasonic_distance*100);
-                        #else
-                            Ultrasonic_distance = (float)ULTRASONIC_distance/100;
-                        #endif
 
                         // if height changes instantly larger than 200cm treat as outlier
                         if (abs(ULTRASONIC_heave - Ultrasonic_distance) < 2){

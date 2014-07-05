@@ -4,34 +4,18 @@
 #include "../inc/io.h"
 
 RN131_data_struct RN131_data;
-bool wifi_data_available = false;
+RN131_states_struct RN131_states;
 
 DmaChannel RN131_DMA_TX_CHN = RN131_DMA_TX_CHANNEL;
 DmaChannel RN131_DMA_RX_CHN = RN131_DMA_RX_CHANNEL;
-
-int RN131_tx = 0, RN131_ty = 0, RN131_tz = 0;
-int RN131_vx = 0, RN131_vy = 0, RN131_vz = 0;
-float RN131_roll = 0, RN131_pitch = 0, RN131_yaw = 0;
-float RN131_quaternion[4] = {0,1,0,0};
-int RN131_bias_gx = 0, RN131_bias_gy = 0, RN131_bias_gz = 0;
-int RN131_bias_ax = 0, RN131_bias_ay = 0, RN131_bias_az = 0;
-char RN131_checksum_rx[3] = {0};
-char RN131_checksum_tx[3] = {0};
-bool RN131_data_match = false;
-
-UINT32 RN131_send_time_ms = 0;
-UINT32 RN131_last_rx_time_ms = 0;
-UINT32 RN131_latency = 0;
-UINT32 RN131_data_timestamp = 0;
-volatile UINT32 RN131_timeout_ms_var = 0;
 
 void RN131_setupUART(void);
 void RN131_setupDMA_TX(void);
 void RN131_setupDMA_RX(void);
 
 void RN131_setupDMA(void){
-    wifi_data_available = false;
-    memset(&RN131_data,0,sizeof(RN131_data_struct));
+    memset(&RN131_data, 0, sizeof(RN131_data_struct));
+    memset(&RN131_states, 0, sizeof(RN131_states_struct));
     RN131_data.DMA_MODE = true;
 
     RN131_setupUART();
@@ -78,7 +62,7 @@ void RN131_setupDMA_TX(void){
     // Set DMA3 interrupt priority
     INTSetVectorPriority(INT_VECTOR_DMA(RN131_DMA_TX_CHN), INT_PRIORITY_LEVEL_5);
     // Set DMA3 interrupt sub-priority
-    INTSetVectorSubPriority(INT_VECTOR_DMA(RN131_DMA_TX_CHN), INT_SUB_PRIORITY_LEVEL_0);
+    INTSetVectorSubPriority(INT_VECTOR_DMA(RN131_DMA_TX_CHN), INT_SUB_PRIORITY_LEVEL_3);
 }
 
 void RN131_setupDMA_RX(void){
@@ -99,14 +83,6 @@ void RN131_setupDMA_RX(void){
 }
 
 /* Return & set function */
-bool RN131_dataAvailable(void){
-    return wifi_data_available;
-}
-
-void RN131_setDataAvailable(bool val){
-    wifi_data_available = val;
-}
-
 char * RN131_getRxDataPointer(void){
     return &RN131_data.rx_buffered[0];
 }
@@ -195,160 +171,221 @@ void RN131_SendDataPacket(unsigned short int data[], unsigned char data_length){
             RN131_data.tx_buffer[RN131_data.tx_msglen++] = LSB;
         }
         RN131_data.tx_buffer[RN131_data.tx_msglen++] = checksum;
-        sprintf(&RN131_checksum_tx[0], "%.2X", (unsigned char)checksum);
 
         // end sequence
         RN131_data.tx_buffer[RN131_data.tx_msglen++] = '@';
         RN131_data.tx_buffer[RN131_data.tx_msglen++] = '!';
 
         RN131_DMATransmit();
-        RN131_logSendTime();
+        RN131_data.send_time = IO_get_time_ms();
     }
 }
 
-void RN131_logSendTime(void){
-    RN131_send_time_ms = IO_get_time_ms();
-}
-
-UINT32 RN131_getSendTime(void){
-    return RN131_send_time_ms;
-}
-
-UINT32 RN131_getLastRxTime(void){
-    return RN131_last_rx_time_ms;
-}
-
-void RN131_decodeRxPacket(void){
-    char * temp_char;
+void RN131_decodeData(void){
+    int i = 0;
+    UINT16 checksum_calc = 0x00;
+    char checksum_lsb = 0, checksum_msb = 0;
+    UINT16 checksum_sent = 0x0000;
+    char data_bin[64] = {0};
+    char data_bin_index = 0;
 
     if ((RN131_data.rxd_msglen != 0) &&
             (RN131_data.rx_buffered[0] == '*') &&
             (RN131_data.rx_buffered[1] == '#') &&
-            (RN131_data.rx_buffered[32] == '\r')){
+            (RN131_data.rx_buffered[66] == '\r')){
+        // Compute checksum
+        for (i = 0; i < 61; i++){
+            checksum_calc ^= (UINT16)((unsigned char)RN131_data.rx_buffered[i] << 8) | (RN131_data.rx_buffered[i+1]);
+        }
+        
+        // isolate received checksum
+        RN131_ASCIIHex2Byte(&RN131_data.rx_buffered[62], &checksum_lsb);
+        RN131_ASCIIHex2Byte(&RN131_data.rx_buffered[64], &checksum_msb);
+        checksum_sent = (UINT16)(((UCHAR)checksum_msb << 8) | checksum_lsb);
+        if (checksum_calc == checksum_sent){
+            // convert ASCII hex data to binary
+            for (i = 2; i < 61; i+=2){
+                RN131_ASCIIHex2Byte(&RN131_data.rx_buffered[i], &data_bin[data_bin_index++]);
+            }
 
-        temp_char = strtok(&RN131_data.rx_buffered[2],",");
-        RN131_quaternion[0] = atof(temp_char);
-
-        temp_char = strtok(NULL,",");
-        RN131_quaternion[1] = atof(temp_char);
-
-        temp_char = strtok(NULL,",");
-        RN131_quaternion[2] = atof(temp_char);
-
-        temp_char = strtok(NULL,",");
-        RN131_quaternion[3] = atof(temp_char);
-
-//        temp_char = strtok(&RN131_data.rx_buffered[2],",");
-//        RN131_tx = atoi(temp_char);
-//
-//        temp_char = strtok(NULL,",");
-//        RN131_ty = atoi(temp_char);
-//
-//        temp_char = strtok(NULL,",");
-//        RN131_tz = atoi(temp_char);
-
-//        temp_char = strtok(NULL,",");
-//        RN131_vx = atoi(temp_char);
-//
-//        temp_char = strtok(NULL,",");
-//        RN131_vy = atoi(temp_char);
-//
-//        temp_char = strtok(NULL,",");
-//        RN131_vz = atoi(temp_char);
-
-//        temp_char = strtok(NULL,",");
-//        RN131_roll = atof(temp_char);
-//
-//        temp_char = strtok(NULL,",");
-//        RN131_pitch = atof(temp_char);
-//
-//        temp_char = strtok(NULL,",");
-//        RN131_yaw = atof(temp_char);
-
-//        temp_char = strtok(NULL,",");
-//        RN131_bias_gx = atoi(temp_char);
-//
-//        temp_char = strtok(NULL,",");
-//        RN131_bias_gy = atoi(temp_char);
-//
-//        temp_char = strtok(NULL,",");
-//        RN131_bias_gz = atoi(temp_char);
-//
-//        temp_char = strtok(NULL,",");
-//        RN131_bias_ax = atoi(temp_char);
-//
-//        temp_char = strtok(NULL,",");
-//        RN131_bias_ay = atoi(temp_char);
-//
-//        temp_char = strtok(NULL,",");
-//        RN131_bias_az = atoi(temp_char);
-
-        temp_char = strtok(NULL,"\r");
-        memcpy(&RN131_checksum_rx[0], temp_char, 2);
-
-        if (strcmp(&RN131_checksum_rx[0],"01") == 0){
-            RN131_clearTimeout();
+            if (data_bin_index == 30)
+                RN131_decodeBinary(&data_bin[0]);
+                IO_DEBUG_TOGGLE();
         }
 
-        RN131_data_timestamp = IO_get_time_ms();
-
-//        RN131_logData();
-
-        if (strcmp(&RN131_checksum_rx[0], &RN131_checksum_tx[0]) == 0){
-            RN131_data_match = true;
-            // if received synch data, send data again
-        }
-        else
-            RN131_data_match = false;
     }
 }
 
-bool RN131_dataMatch(void){
-    return RN131_data_match;
+void RN131_decodeBinary(const char * rx_data){
+    memcpy(&RN131_states.translation_x, (rx_data), 2);
+    memcpy(&RN131_states.translation_y, (rx_data + 2), 2);
+    memcpy(&RN131_states.translation_z, (rx_data + 4), 2);
+
+    memcpy(&RN131_states.velocity_x, (rx_data + 6), 2);
+    memcpy(&RN131_states.velocity_y, (rx_data + 8), 2);
+    memcpy(&RN131_states.velocity_z, (rx_data + 10), 2);
+
+    memcpy(&RN131_states.quaternion_0, (rx_data + 12), 4);
+    memcpy(&RN131_states.quaternion_1, (rx_data + 16), 4);
+    memcpy(&RN131_states.quaternion_2, (rx_data + 20), 4);
+    memcpy(&RN131_states.quaternion_3, (rx_data + 24), 4);
+
+    memcpy(&RN131_states.sequence, (rx_data + 28), 2);
+
+    // We log time only if data is valid
+    RN131_states.timestamp = IO_get_time_ms();
 }
 
 bool RN131_timeoutInc(void){
-    if (RN131_timeout_ms_var++ > RN131_RX_TIMEOUT)
+    if (RN131_data.timeout_rx++ > RN131_RX_TIMEOUT)
         return true;
     else
         return false;
 }
 
 bool RN131_getTimeout(void){
-    if (RN131_timeout_ms_var > RN131_RX_TIMEOUT)
+    if (RN131_data.timeout_rx > RN131_RX_TIMEOUT)
         return true;
     else
         return false;
 }
 
 void RN131_clearTimeout(void){
-    RN131_timeout_ms_var = 0;
+    RN131_data.timeout_rx = 0;
 }
 
 void RN131_logData(void){
+    static UINT16 last_seq_logged = 0x0000;
     char rn131_buffer[150];
-//    int rn_sd = sprintf(&rn131_buffer[0],"%d,%d,%d,%d,%d,%d,%.1f,%.1f,%.1f,%d,%d,%d,%d,%d,%d,%lu\r\n",
-//        RN131_tx, RN131_ty, RN131_tz,
-//        RN131_vx, RN131_vx, RN131_vx,
-//        RN131_roll, RN131_pitch, RN131_yaw,
-//        RN131_bias_gx, RN131_bias_gy, RN131_bias_gz,
-//        RN131_bias_ax, RN131_bias_ay, RN131_bias_az,
-//        IO_get_time_ms());
 
-    int rn_sd = sprintf(&rn131_buffer[0],"%.4f,%.4f,%.4f,%.4f,%lu\r\n",
-        RN131_quaternion[0], RN131_quaternion[1],
-        RN131_quaternion[2], RN131_quaternion[3],
-        RN131_data_timestamp);
+    if (last_seq_logged >=  RN131_states.sequence)
+        return;
+
+    int rn_sd = sprintf(&rn131_buffer[0],"%d,%d,%d,%d,%d,%d,%.4f,%.4f,%.4f,%.4f,%d,%lu\r\n",
+            RN131_states.translation_x, RN131_states.translation_y, RN131_states.translation_z,
+            RN131_states.velocity_x, RN131_states.velocity_y, RN131_states.velocity_z,
+            RN131_states.quaternion_0, RN131_states.quaternion_1, RN131_states.quaternion_2, RN131_states.quaternion_3,
+            RN131_states.sequence,
+            RN131_states.timestamp);
 
     IO_logMessage(&rn131_buffer[0], rn_sd);
+    
+    last_seq_logged = RN131_states.sequence;
 }
 
-int RN131_get_tz(void){
-    return RN131_tz;
+bool RN131_ASCIIHex2Nibble(const char * hex, UCHAR * nibble){
+    switch (*hex){
+        case '0':
+            *nibble = 0;
+            break;
+        case '1':
+            *nibble = 1;
+            break;
+        case '2':
+            *nibble = 2;
+            break;
+        case '3':
+            *nibble = 3;
+            break;
+        case '4':
+            *nibble = 4;
+            break;
+        case '5':
+            *nibble = 5;
+            break;
+        case '6':
+            *nibble = 6;
+            break;
+        case '7':
+            *nibble = 7;
+            break;
+        case '8':
+            *nibble = 8;
+            break;
+        case '9':
+            *nibble = 9;
+            break;
+        case 'A':
+        case 'a':
+            *nibble = 10;
+            break;
+        case 'B':
+        case 'b':
+            *nibble = 11;
+            break;
+        case 'C':
+        case 'c':
+            *nibble = 12;
+            break;
+        case 'D':
+        case 'd':
+            *nibble = 13;
+            break;
+        case 'E':
+        case 'e':
+            *nibble = 14;
+            break;
+        case 'F':
+        case 'f':
+            *nibble = 15;
+            break;
+        default:
+            return false;
+            break;
+    }
+    return true;
 }
 
-float * RN131_getQuaternion(void){
-    return &RN131_quaternion[0];
+bool RN131_ASCIIHex2Byte(const char * hex, UCHAR * byte){
+    UCHAR msn = 0x00, lsn = 0x00;
+
+    if (!RN131_ASCIIHex2Nibble(hex, &msn))
+        return false;
+    if (!RN131_ASCIIHex2Nibble(hex+1, &lsn))
+        return false;
+
+    *byte = ((UCHAR)msn << 4) | lsn;
+    return true;
+}
+
+float RN131_get_tx(void){
+    return (float)RN131_states.translation_x/1000;
+}
+
+float RN131_get_ty(void){
+    return (float)RN131_states.translation_y/1000;
+}
+
+float RN131_get_tz(void){
+    return (float)RN131_states.translation_z/1000;
+}
+
+short int RN131_getTx(void){
+    return RN131_states.translation_x;
+}
+
+short int RN131_getTy(void){
+    return RN131_states.translation_y;
+}
+
+short int RN131_getTz(void){
+    return RN131_states.translation_z;
+}
+
+float RN131_getQuaternion_q0(void){
+    return RN131_states.quaternion_0;
+}
+
+float RN131_getQuaternion_q1(void){
+    return RN131_states.quaternion_1;
+}
+
+float RN131_getQuaternion_q2(void){
+    return RN131_states.quaternion_2;
+}
+
+float RN131_getQuaternion_q3(void){
+    return RN131_states.quaternion_3;
 }
 
 /**************************************************************/
@@ -394,6 +431,17 @@ void RN131_getEverything(void){
     IO_delayms(100);
 }
 
+int RN131_strlen(char data[], int max_len, char match){
+    int i = 0;
+
+    for (i = 0; i < max_len; i++){
+        if (data[i] == match)
+            return (i + 1);
+    }
+
+    return -1;
+}
+
 /**************************************************************/
 
 // Handler for wifi data tx using DMA channel
@@ -417,13 +465,11 @@ void __ISR(_DMA3_VECTOR, ipl5) wifiTxDmaHandler(void)
     }
 }
 
-
 // Handler for wifi data rx using DMA channel
 void __ISR(_DMA_4_VECTOR, ipl5) wifiRxDmaHandler(void)
 {
     // This routine runs when a complete block has been received from the wifi module
     // The termination byte is '\n'
-    int i = 0;
     int evFlags;
 
     // Clear interrupt flag
@@ -432,20 +478,19 @@ void __ISR(_DMA_4_VECTOR, ipl5) wifiRxDmaHandler(void)
     evFlags = DmaChnGetEvFlags(RN131_DMA_RX_CHN);
 
     // If interrupt due to a block event (termination) then proceed
-    if(evFlags & DMA_EV_BLOCK_DONE)
-    {
+    if(evFlags & DMA_EV_BLOCK_DONE){
+        // expect 68 bytes
         RN131_data.rx_msglen = strlen(&RN131_data.rx_buffer[0]);
-        RN131_data.rx_buffer[RN131_data.rx_msglen] = 0; // null character at end of packet
+        RN131_data.rx_buffer[RN131_data.rx_msglen] = 0;
 
-        // copy data from primary buffer to secondary buffer where operations can take place
-        memcpy(&RN131_data.rx_buffered[0], &RN131_data.rx_buffer[0], RN131_data.rx_msglen);
+        memcpy(&RN131_data.rx_buffered[0],&RN131_data.rx_buffer[0], RN131_data.rx_msglen);
         RN131_data.rxd_msglen = RN131_data.rx_msglen;
 
-        RN131_last_rx_time_ms = IO_get_time_ms();
-        RN131_latency = RN131_last_rx_time_ms - RN131_getSendTime();
-        RN131_decodeRxPacket();
-
-        wifi_data_available = true;
+        RN131_data.receive_time = IO_get_time_ms();
+        // Clear timeout since data has arrived
+        RN131_data.timeout_rx = 0;
+                
+        RN131_decodeData();
         
 	DmaChnClrEvFlags(RN131_DMA_RX_CHN, DMA_EV_BLOCK_DONE);
         // Clear UART1Rx interrupt flag

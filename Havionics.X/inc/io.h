@@ -82,7 +82,6 @@ typedef struct {
 #define IO_RX_TIMEOUT_CHECK         (5)
 
 #define IO_SPEED_TIMEOUT            (100)
-#define IO_PWM_UPDATE_DT            (20)
 
 #define IO_RPM_MAX                  (3500)
 #define IO_RPM_MIN                  (500)
@@ -148,17 +147,16 @@ IO_EXTERN bool IO_getSendData(void);
 IO_EXTERN void IO_setSendData(bool val);
 IO_EXTERN bool IO_getLocalControl(void);
 IO_EXTERN void IO_setLocalControl(bool val);
-IO_EXTERN bool IO_getPWMUpdate(void);
 IO_EXTERN void IO_changeNotificationSetup(void);
 IO_EXTERN void IO_logSensorData(void);
-IO_EXTERN void IO_logAttitudeData(void);
-IO_EXTERN void IO_logPitchData(void);
-IO_EXTERN void IO_logRollData(void);
-IO_EXTERN void IO_logYawData(void);
 IO_EXTERN void IO_generalLog(float a1, float a2, float a3);
 IO_EXTERN void IO_logRadio(void);
+IO_EXTERN void IO_logControl(void);
+IO_EXTERN void IO_logQuaternion(void);
 IO_EXTERN bool IO_getRadioError(void);
 IO_EXTERN bool IO_getLEDState(void);
+IO_EXTERN volatile UINT32 IO_getLEDON_time(void);
+IO_EXTERN void IO_Control(void);
 
 IO_EXTERN float IO_getGyroGain_dt(void);
 IO_EXTERN float IO_getUltrasonic_dt(void);
@@ -179,11 +177,13 @@ IO_EXTERN float IO_limits(float lower, float upper, float input);
 IO_EXTERN void IO_filter_1st_order(float n1, float n2, float d1, float d2, float input[3], float output[3]);
 IO_EXTERN void IO_filter_2nd_order(float n0, float n1, float n2, float d0, float d1, float d2, float input[3], float output[3]);
 IO_EXTERN float IO_filter_notch(float wn, float damp_p, float damp_z, float Ts, float input[3], float output[3]);
-IO_EXTERN float IO_PI_with_limits(float Kp, float omega_Ti, float Ts, float current_error,
-        float filter_input[3], float filter_output[3], float lower_limit, float upper_limit);
+IO_EXTERN float IO_PI_with_limits(const float Kp, const float omega_Ti, const float Ts, const float current_error,
+    float filter_input[3], float filter_output[3], const float lower_limit, const float upper_limit);
 IO_EXTERN float IO_lead_lag(float omega_lead, float omega_lag, float Ts, float filter_input[3], float filter_output[3]);
-IO_EXTERN float IO_heave_control(float heave_reference, float height_sensor, float dt);
+IO_EXTERN float IO_complex_lead_lag(float wn_z, float damp_z, float wn_p, float damp_p, float Ts, float input[3], float output[3]);
+IO_EXTERN float IO_heave_control(float heave_reference, float height_sensor, float lower_ctrl_limit, float upper_ctrl_limit, float dt);
 IO_EXTERN float IO_yaw_control(float dt, float yaw_ref);
+IO_EXTERN float IO_LPF_1st(float input[3], float output[3], float dt, float wn);
 
 IO_EXTERN void IO_PIDComputation(IO_PID_TYPE pidtype, float Kp, float omega_Td, float omega_Ti, float alpha, float Ts,float u[3], float e[3]);
 IO_EXTERN void IO_PID_with_limits(float Kp, float omega_lead, float omega_Ti, float alpha, float Ts,
@@ -191,8 +191,9 @@ IO_EXTERN void IO_PID_with_limits(float Kp, float omega_lead, float omega_Ti, fl
         float int_lower_limit, float int_upper_limit,
         float diff_inputs[3], float diff_outputs[3]);
 IO_EXTERN void IO_PID_rateAux(IO_PID_TYPE pidtype, float Kp, float omega_Td, float omega_Ti, float alpha, float Ts,float u[3], float e[3]);
-IO_EXTERN float IO_roll_control(float roll_reference, float dt);
-IO_EXTERN float IO_pitch_control(float pitch_reference, float dt);
+IO_EXTERN float IO_roll_control(float roll_reference, float dt, bool initialise);
+IO_EXTERN float IO_pitch_control(float pitch_reference, float dt, bool initialise);
+IO_EXTERN void IO_position_control(float x_ref, float y_ref, float * roll_cmd, float * pitch_cmd, float dt, bool initialise);
 IO_EXTERN void IO_shiftData(float data[3]);
 IO_EXTERN float IO_landingRefGen(float dt, bool reset);
 IO_EXTERN float IO_filter_speed(float speed_in, float dt, float wn);
@@ -208,12 +209,12 @@ IO_EXTERN void IO_logVital(bool ack, float motor_speed, float altitude_ref,
 float IO_longitudinal;
 float IO_lateral;
 float IO_collective;
-float yaw_ref_sig;
-float yaw_sense_sig;
-float IO_yaw_control_sig;
 float IO_roll_ref;
 float IO_pitch_ref;
-float IO_droll_err;
+float IO_yaw_ref;
+float IO_x_ref;
+float IO_y_ref;
+float IO_z_ref;
 
 #endif	/* IO_H */
 
