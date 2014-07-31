@@ -9988,7 +9988,7 @@ extern void _delay3(unsigned char);
 # 12 "/opt/microchip/xc8/v1.12/include/stdbool.h"
 typedef unsigned char bool;
 
-# 47 "src/../inc/setup.h"
+# 49 "src/../inc/setup.h"
 typedef enum {
 ADDRESS_MATCH_WRITE,
 GET_CONFIG_REG,

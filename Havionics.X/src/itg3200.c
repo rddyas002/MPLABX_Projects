@@ -222,6 +222,10 @@ float ITG3200_getGyroBiasZ(void){
     return ITG3200_biasZ;
 }
 
+UINT16 ITG3200_getRawTemperature(void){
+    return itg3200_data.temp_16bit;
+}
+
 float ITG3200_getFilteredTemperature(void){
     return ITG3200_filteredTemperature;
 }

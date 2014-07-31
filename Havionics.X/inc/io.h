@@ -42,14 +42,22 @@ typedef struct {
     FSFILE * fsFile;
     char file_name[20];
     char data_buffer[SD_WRITE_BUFFER_SIZE];
-    char overflow_buffer[256];
+    char interrupt_buffer[SD_WRITE_BUFFER_SIZE];
+    char overflow_buffer[SD_WRITE_BUFFER_SIZE];
     UINT16 overflow_length;
     bool buffer_overflow;
     UINT16 write_length;
     unsigned int data_buffer_len;
     UINT64 time;
     IO_FILE_ERROR error;
+    bool flush_active;
+    UINT16 int_write_length;
 } IO_file;
+
+typedef struct {
+    char interrupt_buffer[SD_WRITE_BUFFER_SIZE];
+    UINT16 write_length;
+} IO_buffer;
 
 #define IO_OUTPUT_TRIS              0
 #define IO_INPUT_TRIS               1
@@ -76,10 +84,11 @@ typedef struct {
 #define IO_ERROR_BLINK              (1000)
 
 #define IO_ADC_READ                 (100)
-#define IO_SD_FLUSH                 (50)
+#define IO_SD_FLUSH                 (10)
 #define IO_DATA_PERIOD              (20)
 #define IO_STATE_PROJECT            (20)
 #define IO_RX_TIMEOUT_CHECK         (5)
+#define IO_CONTROL_PERIOD_MATCH     (3125)
 
 #define IO_SPEED_TIMEOUT            (100)
 
@@ -131,18 +140,21 @@ IO_EXTERN void IO_delayms(unsigned int num_ms_delay);
 IO_EXTERN void IO_initialize_FS(void);
 IO_EXTERN bool IO_initializeFile(IO_file * IO_file_ds, const char * IO_file_name);
 IO_EXTERN void IO_terminate_FS(void);
+IO_EXTERN bool IO_flush_file(IO_file * io_file);
 IO_EXTERN bool IO_flush_FS(void);
 IO_EXTERN void IO_logMessage(char * str, UINT16 len);
+IO_EXTERN void IO_dmesgMessage(char * str, UINT16 len);
 IO_EXTERN bool IO_getSDFlush(void);
 IO_EXTERN void IO_setSDFlush(bool val);
+IO_EXTERN void IO_terminate_FS(void);
 IO_EXTERN bool IO_getCloseFiles(void);
 IO_EXTERN void IO_setCloseFiles(bool val);
-IO_EXTERN void IO_LED_init(void);
+IO_EXTERN void IO_LED_init(int toggle_number);
 IO_EXTERN void IO_leds_on(float power);
 IO_EXTERN volatile UINT32 IO_get_time_ms(void);
-IO_EXTERN void IO_setSendDataTime(UINT16 delta_t);
-IO_EXTERN void IO_set_change_LED(bool val);
-IO_EXTERN bool IO_get_change_LED(void);
+IO_EXTERN volatile UINT32 IO_updateCoreTime_us(void);
+IO_EXTERN volatile UINT32 IO_getTime_us(void);
+IO_EXTERN void IO_adjIO_time_us(INT32 offset);
 IO_EXTERN bool IO_getSendData(void);
 IO_EXTERN void IO_setSendData(bool val);
 IO_EXTERN bool IO_getLocalControl(void);
@@ -157,6 +169,10 @@ IO_EXTERN bool IO_getRadioError(void);
 IO_EXTERN bool IO_getLEDState(void);
 IO_EXTERN volatile UINT32 IO_getLEDON_time(void);
 IO_EXTERN void IO_Control(void);
+IO_EXTERN void IO_Control_Int_Enable(void);
+IO_EXTERN void IO_control_exec(void);
+IO_EXTERN void IO_dmesgLog(void);
+IO_EXTERN UINT32 IO_getDataTime(void);
 
 IO_EXTERN float IO_getGyroGain_dt(void);
 IO_EXTERN float IO_getUltrasonic_dt(void);
@@ -206,15 +222,16 @@ IO_EXTERN void IO_setStateProject(bool val);
 IO_EXTERN void IO_logVital(bool ack, float motor_speed, float altitude_ref,
         float altitude_sense);
 
-float IO_longitudinal;
-float IO_lateral;
-float IO_collective;
-float IO_roll_ref;
-float IO_pitch_ref;
-float IO_yaw_ref;
-float IO_x_ref;
-float IO_y_ref;
-float IO_z_ref;
+volatile float IO_longitudinal;
+volatile float IO_lateral;
+volatile float IO_collective;
+volatile float IO_esc;
+volatile float IO_roll_ref;
+volatile float IO_pitch_ref;
+volatile float IO_yaw_ref;
+volatile float IO_x_ref;
+volatile float IO_y_ref;
+volatile float IO_z_ref;
 
 #endif	/* IO_H */
 

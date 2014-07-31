@@ -28,6 +28,8 @@
 #include "spektrumRX.h"
 #include "MDD File System/FSIO.h"
 
+#define FIRMWARE_VERSION "HELICOPTER_V1.0"
+
 /* Processor configuration bits */
 #pragma config UPLLEN   = ON                    // USB PLL enabled
 #pragma config UPLLIDIV = DIV_2                 // USB PLL input divider
@@ -44,7 +46,6 @@
 #pragma config DEBUG = OFF
 
 unsigned short int data_pack[17] = {0};
-volatile UINT32 IO_LEDON_TIME;
 
 int main(int argc, char** argv) {
     // Disable JTAG to enable corresponding IO pin functionality
@@ -66,23 +67,31 @@ int main(int argc, char** argv) {
     INTEnableSystemMultiVectoredInt();
     INTEnableInterrupts();
 
-    IO_delayms(3000);
+    IO_delayms(2000);
 
     ITG3200_setup();
     ADXL345_setup();
     ULTRASONIC_setup();
     PWM_initialize();
     SPEKTRUMRX_initialize();
+    IO_LED_init(1);
     IO_changeNotificationSetup();
-
+    IO_getRadioNominal();
+    IO_LED_init(2);
     // initialize SD file system
     IO_initialize_FS();
+    IO_LED_init(3);
 
-    IO_LED_init();
+    RN131_setDataReceived(true);
 
-    float dt = 20e-3;
-    UINT32 prev_time = 0;
-    UINT32 count = 0;
+    char temp_buf[256];
+    int len = sprintf(temp_buf,"%s\nDebugging log file\n", FIRMWARE_VERSION);
+    IO_dmesgMessage(temp_buf, len);
+
+    IO_Control_Int_Enable();
+    
+    // Enable watchdog timer
+    EnableWDT();
 
     while(1){        
         #if defined(USE_USB)
@@ -99,45 +108,6 @@ int main(int argc, char** argv) {
                 count = 0;
             }
         #else
-        if (IO_getSendData()){
-            IO_setSendData(false);
-            ITG3200_readData();
-            ADXL345_readData();
-            data_pack[0] = ITG3200_getx();
-            data_pack[1] = ITG3200_gety();
-            data_pack[2] = ITG3200_getz();
-            data_pack[3] = ADXL345_getx();
-            data_pack[4] = ADXL345_gety();
-            data_pack[5] = ADXL345_getz();
-            data_pack[6] = ULTRASONIC_getData();
-            data_pack[7] = IO_getBatteryVoltage();
-            data_pack[8] = IMU_getRoll16BIT();;
-            data_pack[9] = IMU_getPitch16BIT();
-            data_pack[10] = IMU_getYaw16BIT();
-            data_pack[11] = RN131_getTx();
-            data_pack[12] = RN131_getTy();
-            data_pack[13] = RN131_getTz();
-            data_pack[14] = IO_getRotorSpeed();
-            RN131_SendDataPacket(data_pack, 15);
-
-            UINT32 current_time = IO_get_time_ms();
-
-            dt = (current_time - prev_time)*1e-3;
-            if (dt > 20e-3)
-                dt = 20e-3;
-            
-            IMU_propagateState(dt);
-
-            IO_Control();
-
-            prev_time = current_time;
-        }
-
-//        if (SPEKTRUM_isPacketComplete()){
-//            SPEKTRUM_decodePacket();
-//            // Indicate packet complete to prevent redundant decoding
-//            SPEKTRUM_setPacketComplete(false);
-//        }
 
         if (SPEKTRUM_isAutoMode()){
             IO_setSystemState(OKAY);
@@ -158,6 +128,8 @@ int main(int argc, char** argv) {
             IO_setCloseFiles(false);
         }
     #endif
+        // Clear watchdog timer
+        ClearWDT();
     }
 
     IO_terminate_FS();

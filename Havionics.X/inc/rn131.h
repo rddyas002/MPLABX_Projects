@@ -24,6 +24,7 @@
 #define RN131_DATA_PERIOD       (20)    // millisecond
 #define RN131_DATA_PERIOD_DELTA (50000)
 #define RN131_RX_TIMEOUT        (100)   // ms
+#define RN131_PROCESS_LATENCY   (210)   //us
 
 #define RN131_DMA_TX_PRIORITY   DMA_CHN_PRI2
 #define RN131_DMA_RX_PRIORITY   DMA_CHN_PRI3
@@ -57,8 +58,8 @@ typedef struct{
     // wifi settings
     bool DMA_MODE;
 
-    UINT32 receive_time;
-    UINT32 send_time;
+    unsigned short int key;
+    UINT32 send_uavtime;
 
     UINT32 timeout_rx;  // time since last receive
 }RN131_data_struct;
@@ -77,9 +78,10 @@ typedef struct{
     float quaternion_2;
     float quaternion_3;
 
-    UINT16 sequence;
+    UINT16 received_key;
+    UINT32 received_key_pctime;
 
-    UINT32 timestamp;
+    UINT32 received_uavtime;
 }RN131_states_struct;
 
 RN131_EXTERN void RN131_setupDMA(void);
@@ -111,6 +113,15 @@ RN131_EXTERN void RN131_clearTimeout(void);
 RN131_EXTERN bool RN131_getTimeout(void);
 RN131_EXTERN bool RN131_ASCIIHex2Nibble(const char * hex, UCHAR * nibble);
 RN131_EXTERN bool RN131_ASCIIHex2Byte(const char * hex, UCHAR * byte);
+RN131_EXTERN void RN131_setDataReceived(bool val);
+RN131_EXTERN bool RN131_getDataReceived(void);
+RN131_EXTERN unsigned short int RN131_getKey(void);
+RN131_EXTERN unsigned short int RN131_getIncrKey(void);
+RN131_EXTERN UINT32 RN131_getDelay_us(void);
+RN131_EXTERN INT32 RN131_getOffset_us(void);
+RN131_EXTERN UINT32 RN131_getDelay_us_0(void);
+RN131_EXTERN INT32 RN131_getOffset_us_0(void);
+RN131_EXTERN void RN131_logSync(void);
 
 // RN131 specific commands
 RN131_EXTERN void RN131_enterCmdMode(void);

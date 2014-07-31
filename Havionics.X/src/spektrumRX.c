@@ -207,6 +207,30 @@ UINT16 SPEKTRUM_getChannel6(void){
     return SPEKTRUM_channel6;
 }
 
+UINT16 SPEKTRUM_getEscRaw(void){
+    return SPEKTRUM_channel0;
+}
+
+UINT16 SPEKTRUM_getRightRaw(void){
+    return SPEKTRUM_channel1;
+}
+
+UINT16 SPEKTRUM_getRearRaw(void){
+    return SPEKTRUM_channel2;
+}
+
+UINT16 SPEKTRUM_getRudderRaw(void){
+    return SPEKTRUM_channel3;
+}
+
+UINT16 SPEKTRUM_getGyrogainRaw(void){
+    return SPEKTRUM_channel4;
+}
+
+UINT16 SPEKTRUM_getLeftRaw(void){
+    return SPEKTRUM_channel5;
+}
+
 UINT16 SPEKTRUM_getESC(void){
     return SPEKTRUM_ESC;
 }

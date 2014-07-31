@@ -5,9 +5,16 @@
 
 RN131_data_struct RN131_data;
 RN131_states_struct RN131_states;
+bool RN131_dataReceived = false;
 
 DmaChannel RN131_DMA_TX_CHN = RN131_DMA_TX_CHANNEL;
 DmaChannel RN131_DMA_RX_CHN = RN131_DMA_RX_CHANNEL;
+
+INT32 RN131_offset_us = 0;
+UINT32 RN131_delay_us = 0;          // Round trip delay excluding processing time
+// Initial offset and delay estimate
+INT32 RN131_offset_us_0 = 0;
+UINT32 RN131_delay_us_0 = 0;      
 
 void RN131_setupUART(void);
 void RN131_setupDMA_TX(void);
@@ -99,6 +106,14 @@ void RN131_setRxMsgLenToZero(void){
     RN131_data.rx_msglen = 0;
 }
 
+void RN131_setDataReceived(bool val){
+    RN131_dataReceived = val;
+}
+
+bool RN131_getDataReceived(void){
+    return RN131_dataReceived;
+}
+
 void RN131_DMATransmit(void){
     if (!RN131_data.DMA_transmit_active){
         mU1TXClearIntFlag();
@@ -142,6 +157,14 @@ void RN131_addToBuffer(char * data, BYTE len){
     }
 }
 
+unsigned short int RN131_getKey(void){
+    return RN131_data.key;
+}
+
+unsigned short int RN131_getIncrKey(void){
+    return (++RN131_data.key);
+}
+
 void RN131_SendDataPacket(unsigned short int data[], unsigned char data_length){
     unsigned char MSB, LSB, i;
     unsigned char checksum = 0;
@@ -177,7 +200,11 @@ void RN131_SendDataPacket(unsigned short int data[], unsigned char data_length){
         RN131_data.tx_buffer[RN131_data.tx_msglen++] = '!';
 
         RN131_DMATransmit();
-        RN131_data.send_time = IO_get_time_ms();
+        // Log time client (helicopter) sends data (request)
+        RN131_data.send_uavtime = IO_updateCoreTime_us();
+        // The key is associated with this absolute time
+        // Hence for time synchronisation we must check if this particular key
+        // is received.
     }
 }
 
@@ -186,37 +213,53 @@ void RN131_decodeData(void){
     UINT16 checksum_calc = 0x00;
     char checksum_lsb = 0, checksum_msb = 0;
     UINT16 checksum_sent = 0x0000;
-    char data_bin[64] = {0};
+    char data_bin[72] = {0};
     char data_bin_index = 0;
 
     if ((RN131_data.rxd_msglen != 0) &&
             (RN131_data.rx_buffered[0] == '*') &&
             (RN131_data.rx_buffered[1] == '#') &&
-            (RN131_data.rx_buffered[66] == '\r')){
+            (RN131_data.rx_buffered[74] == '\r')){
         // Compute checksum
-        for (i = 0; i < 61; i++){
+        for (i = 0; i < 69; i++){
             checksum_calc ^= (UINT16)((unsigned char)RN131_data.rx_buffered[i] << 8) | (RN131_data.rx_buffered[i+1]);
         }
         
         // isolate received checksum
-        RN131_ASCIIHex2Byte(&RN131_data.rx_buffered[62], &checksum_lsb);
-        RN131_ASCIIHex2Byte(&RN131_data.rx_buffered[64], &checksum_msb);
+        RN131_ASCIIHex2Byte(&RN131_data.rx_buffered[70], &checksum_lsb);
+        RN131_ASCIIHex2Byte(&RN131_data.rx_buffered[72], &checksum_msb);
         checksum_sent = (UINT16)(((UCHAR)checksum_msb << 8) | checksum_lsb);
         if (checksum_calc == checksum_sent){
             // convert ASCII hex data to binary
-            for (i = 2; i < 61; i+=2){
+            for (i = 2; i < 69; i+=2){
                 RN131_ASCIIHex2Byte(&RN131_data.rx_buffered[i], &data_bin[data_bin_index++]);
             }
 
-            if (data_bin_index == 30)
+            if (data_bin_index == 34){
                 RN131_decodeBinary(&data_bin[0]);
-                IO_DEBUG_TOGGLE();
+                RN131_dataReceived = true;
+            }
         }
 
     }
 }
 
 void RN131_decodeBinary(const char * rx_data){
+    static INT64 offset_sum = 0;
+    static UINT64 delay_sum = 0;
+    static char init_count = 0;
+    static bool initialisation = true;
+
+    UINT16 temp_seq = 0;
+    // Check sequence number [because udp does not ensure order under load]
+    memcpy(&temp_seq, (rx_data + 32), 2);
+    if (temp_seq < RN131_states.received_key){
+//        char buffer[128];
+//        int len = sprintf(buffer,"[%lu] ERR: SEQ_ORDER\r\n",IO_get_time_ms());
+//        IO_dmesgMessage(&buffer[0],len);
+        return;
+    }
+
     memcpy(&RN131_states.translation_x, (rx_data), 2);
     memcpy(&RN131_states.translation_y, (rx_data + 2), 2);
     memcpy(&RN131_states.translation_z, (rx_data + 4), 2);
@@ -230,10 +273,49 @@ void RN131_decodeBinary(const char * rx_data){
     memcpy(&RN131_states.quaternion_2, (rx_data + 20), 4);
     memcpy(&RN131_states.quaternion_3, (rx_data + 24), 4);
 
-    memcpy(&RN131_states.sequence, (rx_data + 28), 2);
+    memcpy(&RN131_states.received_key_pctime, (rx_data + 28), 4);
 
-    // We log time only if data is valid
-    RN131_states.timestamp = IO_get_time_ms();
+    memcpy(&RN131_states.received_key, (rx_data + 32), 2);
+
+    RN131_states.received_uavtime = IO_updateCoreTime_us();
+
+    // If keys match do an offset and delay estimate
+    // Delay was found on average to be 4ms. This means that the key should have
+    // more than double the average delay to return before key is over-written
+    if (RN131_states.received_key == RN131_data.key){
+        RN131_delay_us = RN131_states.received_uavtime - RN131_data.send_uavtime - RN131_PROCESS_LATENCY;
+        RN131_offset_us = RN131_states.received_key_pctime - RN131_data.send_uavtime - (RN131_delay_us >> 1);
+
+        if (initialisation){
+            if (init_count++ < 64){
+                delay_sum += RN131_delay_us;
+                offset_sum += RN131_offset_us;
+            }
+            else{
+                RN131_offset_us_0 = (INT32)(offset_sum >> 6);
+                RN131_delay_us_0 = (UINT32)(delay_sum >> 6);
+                // This is done once only
+                IO_adjIO_time_us(RN131_offset_us_0);
+                initialisation = false;
+            }
+        }
+    }
+}
+
+UINT32 RN131_getDelay_us(void){
+    return RN131_delay_us;
+}
+
+INT32 RN131_getOffset_us(void){
+    return RN131_offset_us;
+}
+
+UINT32 RN131_getDelay_us_0(void){
+    return RN131_delay_us_0;
+}
+
+INT32 RN131_getOffset_us_0(void){
+    return RN131_offset_us_0;
 }
 
 bool RN131_timeoutInc(void){
@@ -255,22 +337,30 @@ void RN131_clearTimeout(void){
 }
 
 void RN131_logData(void){
-    static UINT16 last_seq_logged = 0x0000;
-    char rn131_buffer[150];
+    static UINT16 prev_rn131_seq = 0;
+    char rn131_buffer[256];
 
-    if (last_seq_logged >=  RN131_states.sequence)
+    if (prev_rn131_seq >= RN131_states.received_key)
         return;
+
+    prev_rn131_seq = RN131_states.received_key;
 
     int rn_sd = sprintf(&rn131_buffer[0],"%d,%d,%d,%d,%d,%d,%.4f,%.4f,%.4f,%.4f,%d,%lu\r\n",
             RN131_states.translation_x, RN131_states.translation_y, RN131_states.translation_z,
             RN131_states.velocity_x, RN131_states.velocity_y, RN131_states.velocity_z,
             RN131_states.quaternion_0, RN131_states.quaternion_1, RN131_states.quaternion_2, RN131_states.quaternion_3,
-            RN131_states.sequence,
-            RN131_states.timestamp);
+            RN131_states.received_key,
+            RN131_states.received_uavtime);
 
     IO_logMessage(&rn131_buffer[0], rn_sd);
-    
-    last_seq_logged = RN131_states.sequence;
+}
+
+void RN131_logSync(void){
+    char rn131_buffer[256];
+
+    int rn_sd = sprintf(&rn131_buffer[0], "%d,%u,%lu\r\n", RN131_getOffset_us(), RN131_getDelay_us(), IO_updateCoreTime_us());
+
+    IO_logMessage(&rn131_buffer[0], rn_sd);
 }
 
 bool RN131_ASCIIHex2Nibble(const char * hex, UCHAR * nibble){
@@ -486,12 +576,11 @@ void __ISR(_DMA_4_VECTOR, ipl5) wifiRxDmaHandler(void)
         memcpy(&RN131_data.rx_buffered[0],&RN131_data.rx_buffer[0], RN131_data.rx_msglen);
         RN131_data.rxd_msglen = RN131_data.rx_msglen;
 
-        RN131_data.receive_time = IO_get_time_ms();
         // Clear timeout since data has arrived
         RN131_data.timeout_rx = 0;
-                
+
         RN131_decodeData();
-        
+
 	DmaChnClrEvFlags(RN131_DMA_RX_CHN, DMA_EV_BLOCK_DONE);
         // Clear UART1Rx interrupt flag
 	INTClearFlag(INT_SOURCE_UART_RX(RN131_UART));

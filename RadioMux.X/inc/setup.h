@@ -14,9 +14,11 @@
 #define DEVICE_ADDRESS 0x4A
 
 #define SETUP_TRIS_SELECT   TRISBbits.TRISB2
-#define SETUP_RADIO_ON()    {LATBbits.LATB2 = 1; LATAbits.LATA1 = 1;}
-#define SETUP_RADIO_OFF()   {LATBbits.LATB2 = 0; LATAbits.LATA1 = 0;}
+#define SETUP_RADIO_ON()    {LATBbits.LATB2 = 1;}
+#define SETUP_RADIO_OFF()   {LATBbits.LATB2 = 0;}
 #define SETUP_TOGGLE_CH7(); {LATAbits.LATA1 = !LATAbits.LATA1;}
+#define SETUP_CH7_HIGH()    LATAbits.LATA1 = 1
+#define SETUP_CH7_LOW()     LATAbits.LATA1 = 0
 #define SETUP_TIMER_ON      T0CONbits.TMR0ON
 #define SETUP_TIMER_REG     138
 #define SETUP_COUNT_1ms     (62)//66

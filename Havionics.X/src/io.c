@@ -11,23 +11,31 @@
  *      Battery ADC interrupt 1:3
  * 
  * Other notes:
- * IO uses timer2 for PWM module
- * IO uses time 1 for delays
+ * IO uses Timer 1 for delays
+ * IO uses Timer 2 for PWM module
+ * IO uses Timer 3 for executing the control loop
+ * Interrupt on CN is highest priority for pulsewidth measurements
  */
 
 IO_file IO_log;
+IO_file IO_dmesg;
+
+char IO_sd_buffer[256];
 
 volatile UINT32 IO_time_ms = 0;
+volatile UINT64 IO_time_raw = 0;
 volatile UINT32 IO_DATA_TIME = 0;
 IO_SYSTEM_STATE IO_SystemState = BOOT;
 IO_SYSTEM_STATE IO_SystemPreviousState = BOOT;
 UINT16 IO_batteryVoltage = 0;
-volatile bool IO_change_LED = false;
 volatile bool IO_sendData = false;
 volatile bool IO_localControl = true;
 volatile bool IO_stateProject = false;
 volatile bool IO_sdFlush = false;
 volatile bool IO_closeFiles = false;
+
+/* Mutex type variables */
+volatile bool IO_coreupdate_mutex = false;
 
 void IO_enableLevelShifter1(BOOL val);
 void IO_enableLevelShifter2(BOOL val);
@@ -36,7 +44,7 @@ void IO_setupTICK(void);
 void IO_setupADC(void);
 void IO_delayUnder200ms(unsigned int val);
 bool IO_write_FS(IO_file * io_file, char * data, UINT16 len);
-void IO_terminate_FS(void);
+bool IO_write_FSwInt(IO_file * io_file, char * data, UINT16 len);
 bool IO_flush_FS(void);
 
 #define CONFIG (CN_ON | CN_IDLE_CON)
@@ -45,12 +53,15 @@ bool IO_flush_FS(void);
 
 volatile unsigned int IO_rotor_speed_dt = 0, IO_gyrogain_dt = 0, IO_ultrasonic_dt = 0;
 volatile unsigned int IO_esc_dt = 0, IO_right_dt = 0, IO_rear_dt = 0, IO_rudder_dt = 0, IO_left_dt = 0;
+volatile UINT16 IO_esc_nom = 0, IO_right_nom = 0, IO_rear_nom = 0, IO_rudder_nom = 0, IO_left_nom = 0;
 volatile float IO_rotor_speed = 0;
 volatile float IO_filteredRotorSpeed = 0;
 volatile unsigned int IO_rotor_speed_update = 0;
 volatile bool IO_rotor_speed_timeout = false;
 volatile bool IO_LED_ON = false;
-volatile bool RADIO_ERROR = true;
+volatile bool IO_RADIO_ERROR = true;
+volatile bool ultrasonic_updated = false;
+volatile UCHAR IO_valid_PWM_data = 0x00;
 
 // **********************************
 // Roll channel control parameters
@@ -185,8 +196,81 @@ void IO_setup(void){
     IO_longitudinal = 0;
     IO_lateral = 0;
     IO_collective = 0;
+    IO_esc = 0;
     IO_x_ref = 0;
     IO_y_ref = 0;
+}
+
+void IO_Control_Int_Enable(void){
+    // clear interrupt flag
+    mT3ClearIntFlag();
+    // setup timer with pre-scaler = 256 --> a resolution of 3.2e-6s
+    OpenTimer3(T3_ON | T3_SOURCE_INT | T3_PS_1_256, IO_CONTROL_PERIOD_MATCH);
+
+    ConfigIntTimer3(T3_INT_ON | T3_INT_PRIOR_1);
+
+    // clear interrupt flag
+    mT3ClearIntFlag();
+}
+
+void IO_getRadioNominal(void){
+    // For simplicity, assume capture is working and can retrieve updated
+    // pulsewidth atleast every 25ms
+    long int IO_esc_tmp = 0, IO_right_tmp = 0, IO_rear_tmp = 0, IO_rudder_tmp = 0, IO_left_tmp = 0;
+    int i = 0;
+    int samples[5] = {0};
+
+    // Wait here while radio not detected
+    while(IO_RADIO_ERROR);
+    IO_delayms(200);
+
+    // try for 100 samples
+    for (i = 0; i < 100; i++){
+        if (IO_getESC()){
+            // non-zero
+            IO_esc_tmp += IO_getESC();
+            samples[0]++;
+        }
+        if (IO_getRight()){
+            // non-zero
+            IO_right_tmp += IO_getRight();
+            samples[1]++;
+        }
+        if (IO_getRear()){
+            // non-zero
+            IO_rear_tmp += IO_getRear();
+            samples[2]++;
+        }
+        if (IO_getRudder()){
+            // non-zero
+            IO_rudder_tmp += IO_getRudder();
+            samples[3]++;
+        }
+        if (IO_getLeft()){
+            // non-zero
+            IO_left_tmp += IO_getLeft();
+            samples[4]++;
+        }
+        IO_delayms(25); // wait 25 ms
+    }
+
+    // find average
+    IO_esc_nom = IO_esc_tmp / samples[0];
+    IO_right_nom = IO_right_tmp / samples[1];
+    IO_rear_nom = IO_rear_tmp / samples[2];
+    IO_rudder_nom = IO_rudder_tmp / samples[3];
+    IO_left_nom = IO_left_tmp / samples[4];
+
+    // sanity check: all norms should be below 2000
+    if ((IO_esc_nom > 2000) ||
+        (IO_right_nom > 2000) ||
+        (IO_rear_nom > 2000) ||
+        (IO_rudder_nom > 2000) ||
+        (IO_left_nom > 2000)){
+        while(1);
+        // do not proceed...something is wrong!
+    }
+
 }
 
 void IO_changeNotificationSetup(void){
@@ -220,6 +304,10 @@ void IO_initialize_FS(void){
     while (!FSInit());
 
     IO_initializeFile(&IO_log, IO_FS_LOG);
+    
+#if defined (DEBUG)
+    IO_initializeFile(&IO_dmesg, IO_FS_DMESG);
+#endif
 }
 
 bool IO_initializeFile(IO_file * IO_file_ds, const char * IO_file_name){
@@ -241,11 +329,59 @@ bool IO_initializeFile(IO_file * IO_file_ds, const char * IO_file_name){
 }
 
 void IO_terminate_FS(void){
+    // Flush any remaining data before closing files
+    IO_flush_FS();  // Flush overflow
+
+    if (IO_log.file_opened){
+        if (FSfwrite (IO_log.data_buffer, 1, IO_log.write_length, IO_log.fsFile)){
+            IO_log.error = WRITE_ERROR;
+        }
+    }
+    if (IO_dmesg.file_opened){
+        if (FSfwrite (IO_dmesg.data_buffer, 1, IO_dmesg.write_length, IO_dmesg.fsFile)){
+            IO_dmesg.error = WRITE_ERROR;
+        }
+    }
+
     if (IO_log.file_opened){
         if(FSfclose(IO_log.fsFile))
             IO_log.error = CLOSE_ERROR;
         else
             IO_log.file_opened = false;
+    }
+
+    if (IO_dmesg.file_opened){
+        if(FSfclose(IO_dmesg.fsFile))
+            IO_dmesg.error = CLOSE_ERROR;
+        else
+            IO_dmesg.file_opened = false;
+    }
+}
+
+bool IO_write_FSwInt(IO_file * io_file, char * data, UINT16 len){
+    if (io_file->file_opened){
+        // if currently being flushed then write to interrupt buffer
+        if (io_file->flush_active){
+            UINT16 buffer_remainder = SD_WRITE_BUFFER_SIZE - io_file->int_write_length;
+            if (buffer_remainder > len){
+                memcpy(&(io_file->interrupt_buffer[io_file->int_write_length]), data, len);
+                io_file->int_write_length += len;
+                return true;
+            }
+            else{
+                // if delayed data cannot be stored in interrupt buffer then do not bother
+                // to store i.e. discard
+                return false;
+            }
+        }
+
+        // if interrupt_buffer was written during flush move data to main buffer
+        if (io_file->int_write_length > 0){
+            IO_write_FS(io_file, &(io_file->interrupt_buffer[0]), io_file->int_write_length);
+            io_file->int_write_length = 0;
+        }
+        // Then fill in current data
+        IO_write_FS(io_file, data, len);
     }
 }
 
@@ -286,27 +422,43 @@ bool IO_write_FS(IO_file * io_file, char * data, UINT16 len){
         return false;
 }
 
-bool IO_flush_FS(void){
+bool IO_flush_file(IO_file * io_file){
+    io_file->flush_active = true;
     // only if main buffer is full (512), do a write
-    if (IO_log.buffer_overflow && IO_log.file_opened){
-        if (FSfwrite (IO_log.data_buffer, 1, IO_log.write_length, IO_log.fsFile) != IO_log.write_length){
-            IO_log.error = WRITE_ERROR;
+    if (io_file->buffer_overflow && io_file->file_opened){
+        if (FSfwrite (io_file->data_buffer, 1, io_file->write_length, io_file->fsFile) != io_file->write_length){
+            io_file->error = WRITE_ERROR;
+            io_file->file_opened = false;
+            io_file->flush_active = false;
             return false;
         }
         else{
-            IO_log.buffer_overflow = false;
-            IO_log.write_length = 0;
+            io_file->buffer_overflow = false;
+            io_file->write_length = 0;
             // now move data from overflow to main buffer
-            memcpy(&(IO_log.data_buffer[0]), &(IO_log.overflow_buffer[0]), IO_log.overflow_length);
-            IO_log.write_length = IO_log.overflow_length;
-            IO_log.overflow_length = 0;
+            memcpy(&(io_file->data_buffer[0]), &(io_file->overflow_buffer[0]), io_file->overflow_length);
+            io_file->write_length = io_file->overflow_length;
+            io_file->overflow_length = 0;
+            io_file->flush_active = false;
             return true;
         }
     }
+    io_file->flush_active = false;
+}
+
+bool IO_flush_FS(void){
+    int ret = 0;
+    ret = IO_flush_file(&IO_log);
+    ret = IO_flush_file(&IO_dmesg);
+    return ret;
 }
 
 void IO_logMessage(char * str, UINT16 len){
-    IO_write_FS(&IO_log, str, len);
+    IO_write_FSwInt(&IO_log, str, len);
+}
+
+void IO_dmesgMessage(char * str, UINT16 len){
+    IO_write_FSwInt(&IO_dmesg, str, len);
 }
 
 bool IO_getCloseFiles(void){
@@ -370,30 +522,18 @@ UINT16 IO_PWM_dc(float dc){
     return (UINT16)floor(IO_PWM_PERIOD*dc/100);
 }
 
-void IO_LED_init(void){
-    IO_leds_on(60.0);
-    IO_delayms(200);
+void IO_LED_init(int toggle_number){
+    int i = 0;
+
+    for (i = 0; i < toggle_number; i++){
+        IO_leds_on(60.0);
+        IO_delayms(200);
+
+        IO_setupPWM_default();
+        IO_delayms(200);
+    }
     
-    IO_setupPWM_default();
-    IO_delayms(200);
-
-    IO_leds_on(60.0);
-    IO_delayms(200);
-    
-    IO_setupPWM_default();
-    IO_delayms(200);
-
-    IO_leds_on(60.0);
-    IO_delayms(200);
-    
-    IO_setupPWM_default();
-    IO_delayms(200);
-
-    IO_leds_on(60.0);
-    IO_delayms(200);
-
-    IO_setupPWM_default();
-    IO_delayms(200);
+    IO_delayms(1000);
 }
 
 void IO_leds_on(float power){
@@ -405,6 +545,13 @@ void IO_leds_on(float power){
 
 bool IO_getLEDState(void){
     return IO_LED_ON;
+}
+
+void IO_toggle_beacon(void){
+    if (IO_LED_ON)
+        IO_setupPWM_default();
+    else
+        IO_leds_on(50);
 }
 
 void IO_setupTICK(void){
@@ -476,16 +623,12 @@ volatile UINT32 IO_get_time_ms(void){
     return IO_time_ms;
 }
 
-void IO_setSendDataTime(UINT16 delta_t){
-    IO_DATA_TIME = IO_time_ms + delta_t;
+void IO_clrDataTime(void){
+    IO_DATA_TIME = 0;
 }
 
-void IO_set_change_LED(bool val){
-    IO_change_LED = val;
-}
-
-bool IO_get_change_LED(void){
-    return IO_change_LED;
+UINT32 IO_getDataTime(void){
+    return IO_DATA_TIME;
 }
 
 UINT16 IO_getBatteryVoltage(void){
@@ -525,7 +668,7 @@ void IO_setSDFlush(bool val){
 }
 
 bool IO_getRadioError(void){
-    return RADIO_ERROR;
+    return IO_RADIO_ERROR;
 }
 
 float IO_getGyroGain_dt(void){
@@ -544,9 +687,9 @@ float IO_getAltitude(void){
     // 765cm -> 44.37e-3 -> 1774800
 
     float current_altitude = (float)IO_ultrasonic_dt/(232000);
-    // If there is a sudden change in altitude signal greater than 2 meters
+    // If there is a sudden change in altitude signal greater than 1 meters
     // assume last calculation is the best estimate
-    if (abs(current_altitude - previous_altitude) < 2){
+    if (fabs(current_altitude - previous_altitude) < 1){
         previous_altitude = current_altitude;
         return current_altitude;
     }
@@ -610,12 +753,46 @@ UINT16 IO_getLeft(void){
     return (UINT16) (IO_left_dt / (40));
 }
 
-char IO_sd_buffer[64];
+void IO_control_exec(void){
+    static UINT32 prev_timestamp = 0;
+    UINT16 data_pack[20] = {0};
+
+    ITG3200_readData();
+    ADXL345_readData();
+    data_pack[0] = ITG3200_getx();
+    data_pack[1] = ITG3200_gety();
+    data_pack[2] = ITG3200_getz();
+    data_pack[3] = ADXL345_getx();
+    data_pack[4] = ADXL345_gety();
+    data_pack[5] = ADXL345_getz();
+    data_pack[6] = ULTRASONIC_getData();
+    data_pack[7] = IO_getBatteryVoltage();
+    data_pack[8] = IMU_getRoll16BIT();;
+    data_pack[9] = IMU_getPitch16BIT();
+    data_pack[10] = IMU_getYaw16BIT();
+    data_pack[11] = RN131_getTx();
+    data_pack[12] = RN131_getTy();
+    data_pack[13] = RN131_getTz();
+    data_pack[14] = IO_getRotorSpeed();
+    data_pack[15] = 0x0000;
+    data_pack[16] = ITG3200_getRawTemperature();
+    data_pack[17] = RN131_getIncrKey();
+    RN131_SendDataPacket(data_pack, 18);
+
+    int temp_time = ReadCoreTimer();
+    float control_dt = (float)((unsigned int)((unsigned int) temp_time - (int) prev_timestamp))/40e6;
+    prev_timestamp = temp_time;
+    
+    IMU_propagateState(control_dt);
+    IO_Control();
+}
+
 void IO_Control(void){
     static float ref_speed = 0;
     static float internal_speed_ref = 0;
     static float speed_input[3] = {0}, speed_output[3]={0};
     static UINT32 IO_prev_timestamp = 0;
+    static UINT32 IO_prev_heave_timestamp = 0;
     static bool reference_above_landing = false;
     static bool landing_routine_active = false;
     static bool semi_automode1 = false;
@@ -628,13 +805,13 @@ void IO_Control(void){
     // ********************************************************************* //
     float throttle = (float)IO_getESC();
     if (throttle > 1100)
-        internal_speed_ref = internal_speed_ref + 2;
+        internal_speed_ref = internal_speed_ref + 1;
     else
         internal_speed_ref = 0;
 
     // double rate of increase if speed is greater than 1500 rpm
     if (internal_speed_ref > 1500)
-        internal_speed_ref = internal_speed_ref + 4;
+        internal_speed_ref = internal_speed_ref + 2;
 
     ref_speed = internal_speed_ref;
 
@@ -653,7 +830,7 @@ void IO_Control(void){
     float current_speed = (float)IO_getRotorSpeed();
     float current_error = (ref_speed - current_speed)*IO_RPM_2_RAD_PER_SEC;
     float upper_limit_int_speed = IO_SPEED_UPPER_LIMIT*IO_SPEED_OMEGA_TI/IO_SPEED_KP;
-    float motor_pi = IO_PI_with_limits(IO_SPEED_KP, IO_SPEED_OMEGA_TI, IO_dt, current_error,
+    IO_esc = IO_PI_with_limits(IO_SPEED_KP, IO_SPEED_OMEGA_TI, IO_dt, current_error,
         &speed_input[0], &speed_output[0], 0, upper_limit_int_speed);
     // ******************************************* END Motor speed control ***//
 
@@ -718,39 +895,28 @@ void IO_Control(void){
 
     float height_sensor = 0;
     height_sensor = IO_getAltitude();
-//    if (IO_getLocalControl())
-//        height_sensor = IO_getAltitude();//ULTRASONIC_getHeave() + 0.0879;
-//    else
-//        height_sensor = (float)RN131_get_tz()/1000;
 
-//    // if the actual altitude is < than 0.3m for less than 10 seconds
-//    // reset timer...must be above height threshold for more than 10s
-//    // to enable semi-automode1
-//    if ((height_sensor < 0.3) && (height_above_ref_timer < 10000)){
-//        height_above_ref_timer = 0;
-//        semi_automode1 = false;
-//    }
-//    else{
-//        // add 20ms
-//        height_above_ref_timer += 20;
-//        // if above ref height and NOT in semi-automode1 then enter
-//        if ((height_above_ref_timer > 10000) && !semi_automode1){
-//            semi_automode1 = true;
-//            // resets controller initial states
-//            IO_roll_control(0, 20e-3, true);
-//            IO_pitch_control(0, 20e-3, true);
-//            IO_position_control(0, 0, NULL, NULL, 20e-3, true);
-//        }
-//    }
 
     if (height_sensor > 0.3){
         takeoff = true;
     }
     IO_z_ref = altitude_ref;
-    if (!takeoff)
-        IO_collective = IO_heave_control(altitude_ref, height_sensor, IO_TAKEOFF_HEAVE_LOWER_LIMIT, IO_TAKEOFF_HEAVE_UPPER_LIMIT, IO_dt);
-    else
-        IO_collective = IO_heave_control(altitude_ref, height_sensor, IO_NORMAL_HEAVE_LOWER_LIMIT, IO_NORMAL_HEAVE_UPPER_LIMIT, IO_dt);
+    if (!takeoff){
+        if (ultrasonic_updated){
+            float IO_heave_dt = (IO_get_time_ms() - IO_prev_heave_timestamp)*1e-3;
+            IO_prev_heave_timestamp = IO_get_time_ms();
+            IO_collective = IO_heave_control(altitude_ref, height_sensor, IO_TAKEOFF_HEAVE_LOWER_LIMIT, IO_TAKEOFF_HEAVE_UPPER_LIMIT, IO_heave_dt);
+            ultrasonic_updated = false;
+        }
+    }
+    else{
+        if (ultrasonic_updated){
+            float IO_heave_dt = (IO_get_time_ms() - IO_prev_heave_timestamp)*1e-3;
+            IO_prev_heave_timestamp = IO_get_time_ms();
+            IO_collective = IO_heave_control(altitude_ref, height_sensor, IO_NORMAL_HEAVE_LOWER_LIMIT, IO_NORMAL_HEAVE_UPPER_LIMIT, IO_heave_dt);
+            ultrasonic_updated = false;
+        }
+    }
     // ************************************************* END Heave control ***//
 
     /*****************/
@@ -788,32 +954,39 @@ void IO_Control(void){
     IO_longitudinal = IO_limits(IO_LONGITUDINAL_LOWER_LIMIT, IO_LONGITUDINAL_UPPER_LIMIT, IO_longitudinal);
     /*****************/
 
-//    IO_lateral = lateral;
-//    IO_longitudinal = longitudinal;
+    IO_collective = collective_new;
+    IO_lateral = lateral;
+    IO_longitudinal = longitudinal;
 
-//    if (!semi_automode1){
-//        IO_longitudinal = longitudinal;
-//        IO_lateral = lateral;
-//    }
+    // Cut-off mode
+    if (throttle < 1100){
+        // set collective to be positive (but not too much) so blade will not
+        // hit tail on landing [autorotation terminal phase]
+        IO_collective = 100;
+    }
 
+    int esc = PWM_PULSEWIDTH2BYTE((int)(throttle));
     int servo_right = PWM_PULSEWIDTH2BYTE((int)(SPEKTRUM_getRightNominal() + IO_lateral + IO_longitudinal + IO_collective));
     int servo_rear = PWM_PULSEWIDTH2BYTE((int)(SPEKTRUM_getRearNominal() + 2*IO_longitudinal - IO_collective));
     int servo_rudder = PWM_PULSEWIDTH2BYTE(IO_getRudder());
     int servo_left = PWM_PULSEWIDTH2BYTE((int)(SPEKTRUM_getLeftNominal() + IO_lateral - IO_longitudinal - IO_collective));
 
-    UINT8 ESC_input = (UINT8) IO_limits(IO_PWM_SAT_MIN, IO_PWM_SAT_MAX, motor_pi);
+    UINT8 ESC_input = (UINT8) IO_limits(IO_PWM_SAT_MIN, IO_PWM_SAT_MAX, IO_esc);
 
     PWM_data[0] = ESC_input;
     PWM_data[1] = servo_right;
     PWM_data[2] = servo_rear;
-    PWM_data[3] = yaw_pwm;
+    PWM_data[3] = servo_rudder;//yaw_pwm;
     PWM_data[4] = PWM_PULSEWIDTH2BYTE(SPEKTRUM2PULSEWIDTH(422));
     PWM_data[5] = servo_left;
 
     bool auto_mode_on = SPEKTRUM_isAutoMode();
     bool ack = PWM_sendPacket(auto_mode_on,PWM_data,6);
-//    IO_logControl();
-    RN131_logData();
+    IO_logControl();
+//    RN131_logSync();
+//    RN131_logData();
+//    IO_logSensorData();
+//    IO_logRadio();
 }
 
 char IO_limit_PWM(int sig){
@@ -869,17 +1042,28 @@ void IO_logVital(bool ack, float motor_speed, float altitude_ref,
 }
 
 void IO_logSensorData(void){
-    int sdlen = sprintf(&IO_sd_buffer[0],"%.3f,%.3f,%.3f,%.3f,%lu\r\n",
-                        ITG3200_getFilteredTemperature(),
-                        ITG3200_getxDPS(),
-                        ITG3200_getyDPS(),
-                        ITG3200_getzDPS(),
+    int sdlen = sprintf(&IO_sd_buffer[0],"%d,%d,%d,%d,%d,%d,%lu\r\n",
+                        ITG3200_getx(), ITG3200_gety(), ITG3200_getz(),
+                        ADXL345_getx(), ADXL345_gety(), ADXL345_getz(),
                         IO_get_time_ms());
 
     IO_logMessage(&IO_sd_buffer[0], sdlen);
 }
 
 void IO_logControl(void){
+    int sdlen = sprintf(&IO_sd_buffer[0],"%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.0f,%.0f,%.0f,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%u,%u,%lu\r\n",
+                        IO_roll_ref*180/M_PI, IO_pitch_ref*180/M_PI, IO_yaw_ref,
+                        IMU_getRoll(), IMU_getPitch(), IMU_getYaw(),
+                        IO_x_ref*1000, IO_y_ref*1000, IO_z_ref*1000,
+                        RN131_getTx(), RN131_getTy(), (short int)(IO_getAltitude()*1000),
+                        IO_lateral, IO_longitudinal, IO_collective, IO_esc, 
+                        IO_getRotorSpeed(),
+                        IO_getBatteryVoltage(),
+                        IO_get_time_ms());
+    IO_logMessage(&IO_sd_buffer[0], sdlen);
+}
+
+void IO_dmesgLog(void){
     int sdlen = sprintf(&IO_sd_buffer[0],"%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.0f,%.0f,%.0f,%d,%d,%d,%.3f,%.3f,%.3f,%lu\r\n",
                         IO_roll_ref*180/M_PI, IO_pitch_ref*180/M_PI, IO_yaw_ref,
                         IMU_getRoll(), IMU_getPitch(), IMU_getYaw(),
@@ -887,7 +1071,7 @@ void IO_logControl(void){
                         RN131_getTx(), RN131_getTy(), RN131_getTz(),
                         IO_lateral, IO_longitudinal, IO_collective,
                         IO_get_time_ms());
-    IO_logMessage(&IO_sd_buffer[0], sdlen);
+    IO_dmesgMessage(&IO_sd_buffer[0], sdlen);
 }
 
 void IO_generalLog(float a1, float a2, float a3){
@@ -913,14 +1097,14 @@ void IO_logRadio(void){
                 (UINT16)IO_getRudder(),
                 (UINT16)IO_getGyroGain(),
                 (UINT16)IO_getLeft(),
-                SPEKTRUM_getESC(),
-                SPEKTRUM_getRIGHT(),
-                SPEKTRUM_getREAR(),
-                SPEKTRUM_getRUDDER(),
-                SPEKTRUM_getGAIN(),
-                SPEKTRUM_getLEFT(),
+                SPEKTRUM_getEscRaw(),
+                SPEKTRUM_getRightRaw(),
+                SPEKTRUM_getRearRaw(),
+                SPEKTRUM_getRudderRaw(),
+                SPEKTRUM_getGyrogainRaw(),
+                SPEKTRUM_getLeftRaw(),
                 IO_getRadioError(),
-                IO_get_time_ms());
+                IO_updateCoreTime_us());
     IO_logMessage(&IO_sd_buffer[0], sdlen);
 }
 
@@ -1293,6 +1477,35 @@ void IO_shiftData(float data[3]){
     data[1] = data[0];
 }
 
+// When most accurate current time is required, call this function
+// Resolution of 1 microseconds
+// Maximum count equivalent to 71 minutes
+volatile UINT32 IO_updateCoreTime_us(void){
+    static UINT32 previous_time = 0;
+
+    // If this function is running by some process do not interrupt
+    if (!IO_coreupdate_mutex){
+        IO_coreupdate_mutex = true;
+        UINT32 current_time = ReadCoreTimer();
+        UINT32 dt = (UINT32)((UINT32)current_time - (INT32)previous_time);
+        previous_time = current_time;
+        IO_time_raw += dt;
+        IO_coreupdate_mutex = false;
+    }
+    
+    return (UINT32)(IO_time_raw / 40);
+}
+
+volatile UINT32 IO_getTime_us(void){
+    return (UINT32)(IO_time_raw / 40);
+}
+
+
+// Used by RN131 to offset initial estimate
+void IO_adjIO_time_us(INT32 offset_us){
+    IO_time_raw = IO_time_raw + (INT64)offset_us*40;
+}
+
 /*
     ADC interrupt
     PRIORITY: 1
@@ -1315,11 +1528,15 @@ void __ISR(_ADC_VECTOR, ipl1) ADCInterrupt( void)
 void __ISR(_CORE_TIMER_VECTOR, IPL7SRS) CoreTimerHandler(void)
 {
     static UINT16 heartbeat_count = 0;
-    
+
     // Clear the interrupt flag
     mCTClearIntFlag();
 
+    // Must be called regularly to keep time updated (atleast every 107s)
+    IO_updateCoreTime_us();
+
     IO_time_ms++;
+    IO_DATA_TIME++;
 
     // Update the period
     UpdateCoreTimer(CORE_TICK_RATE);
@@ -1342,11 +1559,6 @@ void __ISR(_CORE_TIMER_VECTOR, IPL7SRS) CoreTimerHandler(void)
 
     if ((IO_time_ms % IO_SD_FLUSH) == 0){
         IO_sdFlush = true;
-    }
-
-    // Led dimming
-    if(!(IO_time_ms % 10)){
-        IO_change_LED = true;
     }
 
     SPEKTRUM_timeoutInc();
@@ -1412,13 +1624,9 @@ void __ISR(_CORE_TIMER_VECTOR, IPL7SRS) CoreTimerHandler(void)
     IO_SystemPreviousState = IO_SystemState;
 
     // check if PROGRAM button is depressed, if so, close any open files
-    if (!PORTReadBits(IOPORT_A, BIT_1))
-    {
+    if (!PORTReadBits(IOPORT_A, BIT_1)){
         IO_closeFiles = true;
     }
-
-    // Clear watchdog timer
-    ClearWDT();
 }
 
 /*
@@ -1431,7 +1639,6 @@ void __ISR(_CHANGE_NOTICE_VECTOR, IPL7SRS) changeNotificationHandler(void)
     static int prev_time_stamp[10] = {0};
     static bool first_run[10] = {true};
     static bool pin_prev_state[10] = {low};
-    static unsigned char valid_data = 0b00000000;
 
     int temp_time;
 
@@ -1477,10 +1684,12 @@ void __ISR(_CHANGE_NOTICE_VECTOR, IPL7SRS) changeNotificationHandler(void)
         prev_time_stamp[1] = temp_time;
         pin_prev_state[1] = low;
 
-        if ((IO_gyrogain_dt > CN_PWM_MAX) || (IO_gyrogain_dt < CN_PWM_MIN))
-            valid_data &= 0b11111110;
-        else
-            valid_data |= 0b00000001;
+        if ((IO_gyrogain_dt > CN_PWM_MAX) || (IO_gyrogain_dt < CN_PWM_MIN)){
+            IO_valid_PWM_data &= 0b11101111;
+        }
+        else{
+            IO_valid_PWM_data |= 0b00010000;
+        }
     }
 
     if ((port_val_D & IO_ULTRASONIC_PIND) && (pin_prev_state[2] == low))
@@ -1494,6 +1703,8 @@ void __ISR(_CHANGE_NOTICE_VECTOR, IPL7SRS) changeNotificationHandler(void)
         IO_ultrasonic_dt = (unsigned int) ReadCoreTimer() - (int) prev_time_stamp[2];
         prev_time_stamp[2] = temp_time;
         pin_prev_state[2] = low;
+
+        ultrasonic_updated = true;
 
         if (IO_ultrasonic_dt > IO_ULTRASONIC_DT_MAX)
             IO_ultrasonic_dt = IO_ULTRASONIC_DT_MAX;
@@ -1511,10 +1722,12 @@ void __ISR(_CHANGE_NOTICE_VECTOR, IPL7SRS) changeNotificationHandler(void)
         prev_time_stamp[3] = temp_time;
         pin_prev_state[3] = low;
 
-        if ((IO_esc_dt > CN_PWM_MAX) || (IO_esc_dt < CN_PWM_MIN))
-            valid_data &= 0b11111101;
-        else
-            valid_data |= 0b00000010;
+        if ((IO_esc_dt > CN_PWM_MAX) || (IO_esc_dt < CN_PWM_MIN)){
+            IO_valid_PWM_data &= 0b11111110;
+        }
+        else{
+            IO_valid_PWM_data |= 0b00000001;
+        }
     }
 
     if ((port_val_B & IO_RIGHT_PINB) && (pin_prev_state[4] == low))
@@ -1529,10 +1742,12 @@ void __ISR(_CHANGE_NOTICE_VECTOR, IPL7SRS) changeNotificationHandler(void)
         prev_time_stamp[4] = temp_time;
         pin_prev_state[4] = low;
 
-        if ((IO_right_dt > CN_PWM_MAX) || (IO_right_dt < CN_PWM_MIN))
-            valid_data &= 0b11111011;
-        else
-            valid_data |= 0b00000100;
+        if ((IO_right_dt > CN_PWM_MAX) || (IO_right_dt < CN_PWM_MIN)){
+            IO_valid_PWM_data &= 0b11111101;
+        }
+        else{
+            IO_valid_PWM_data |= 0b00000010;
+        }
     }
 
     if ((port_val_B & IO_REAR_PINB) && (pin_prev_state[5] == low))
@@ -1547,10 +1762,12 @@ void __ISR(_CHANGE_NOTICE_VECTOR, IPL7SRS) changeNotificationHandler(void)
         prev_time_stamp[5] = temp_time;
         pin_prev_state[5] = low;
 
-        if ((IO_rear_dt > CN_PWM_MAX) || (IO_rear_dt < CN_PWM_MIN))
-            valid_data &= 0b11110111;
-        else
-            valid_data |= 0b00001000;
+        if ((IO_rear_dt > CN_PWM_MAX) || (IO_rear_dt < CN_PWM_MIN)){
+            IO_valid_PWM_data &= 0b11111011;
+        }
+        else{
+            IO_valid_PWM_data |= 0b00000100;
+        }
     }
 
     if ((port_val_B & IO_RUDDER_PINB) && (pin_prev_state[6] == low))
@@ -1565,10 +1782,12 @@ void __ISR(_CHANGE_NOTICE_VECTOR, IPL7SRS) changeNotificationHandler(void)
         prev_time_stamp[6] = temp_time;
         pin_prev_state[6] = low;
 
-        if ((IO_rudder_dt > CN_PWM_MAX) || (IO_rudder_dt < CN_PWM_MIN))
-            valid_data &= 0b11101111;
-        else
-            valid_data |= 0b00010000;
+        if ((IO_rudder_dt > CN_PWM_MAX) || (IO_rudder_dt < CN_PWM_MIN)){
+            IO_valid_PWM_data &= 0b11110111;
+        }
+        else{
+            IO_valid_PWM_data |= 0b00001000;
+        }
     }
 
     if ((port_val_B & IO_LEFT_PINB) && (pin_prev_state[7] == low))
@@ -1583,17 +1802,20 @@ void __ISR(_CHANGE_NOTICE_VECTOR, IPL7SRS) changeNotificationHandler(void)
         prev_time_stamp[7] = temp_time;
         pin_prev_state[7] = low;
 
-        if ((IO_left_dt > CN_PWM_MAX) || (IO_left_dt < CN_PWM_MIN))
-            valid_data &= 0b11011111;
-        else
-            valid_data |= 0b00100000;
+        if ((IO_left_dt > CN_PWM_MAX) || (IO_left_dt < CN_PWM_MIN)){
+            IO_valid_PWM_data &= 0b11011111;
+        }
+        else{
+            IO_valid_PWM_data |= 0b00100000;
+        }
     }
 
-    if (valid_data == 0b00111111){
-        RADIO_ERROR = false;
+    // if any pin is invalid --> radio error true
+    if (IO_valid_PWM_data == 0b00111111){
+        IO_RADIO_ERROR = false;
     }
     else{
-        RADIO_ERROR = true;
+        IO_RADIO_ERROR = true;
     }
     
 #else
@@ -1632,5 +1854,13 @@ void __ISR(_CHANGE_NOTICE_VECTOR, IPL7SRS) changeNotificationHandler(void)
         pin_prev_state[2] = low;
     }
 #endif
+
+}
+
+// Set control loop as lowest priority
+void __ISR(_TIMER_3_VECTOR, ipl1) _Timer3Handler(void){
+    IO_control_exec();
+    // clear the interrupt flag
+    mT3ClearIntFlag();
 
 }

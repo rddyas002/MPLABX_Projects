@@ -22,8 +22,8 @@
 #define PWM_LENGTH_MAX      10
 
 // Specs on PWM module in us
-#define PWM_WIDTH_MAX       (2000)
-#define PWM_WIDTH_MIN       (934)
+#define PWM_WIDTH_MAX       (1998)//(2000)
+#define PWM_WIDTH_MIN       (900)//(934)
 #define PWM_MAX_OUTPUT      (255)
 #define PWM_INPUT_DIFF      (PWM_WIDTH_MAX - PWM_WIDTH_MIN)
 #define PWM_MAP_GAIN        ((float)PWM_MAX_OUTPUT/PWM_INPUT_DIFF)

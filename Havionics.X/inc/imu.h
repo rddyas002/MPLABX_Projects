@@ -15,8 +15,8 @@
 
 #define TO_RAD_PER_SEC(x)   (x*M_PI/180)
 
-#define IMU_OMEGA_KP      (0.005)
-#define IMU_OMEGA_TI      (0.001*2*M_PI)
+#define IMU_OMEGA_KP      (0.01)//(0.005)
+#define IMU_OMEGA_TI      (0.002*2*M_PI)//(0.001*2*M_PI)
 #define IMU_BIAS_UPPER_LIMIT    (1)   // (rad/s)
 #define IMU_BIAS_LOWER_LIMIT    (-1)
 

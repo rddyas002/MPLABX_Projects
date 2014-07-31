@@ -85,6 +85,7 @@ ITG3200_EXTERN void ITG3200_calibrate(void);
 ITG3200_EXTERN short int ITG3200_getx(void);
 ITG3200_EXTERN short int ITG3200_gety(void);
 ITG3200_EXTERN short int ITG3200_getz(void);
+ITG3200_EXTERN UINT16 ITG3200_getRawTemperature(void);
 
 // return member variables
 ITG3200_EXTERN float ITG3200_getx_float(void);

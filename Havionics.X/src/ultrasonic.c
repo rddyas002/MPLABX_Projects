@@ -93,7 +93,7 @@ void __ISR(_DMA1_VECTOR, ipl3) ultrasonicDmaHandler(void)
                         float Ultrasonic_distance = 0;
 
                         // if height changes instantly larger than 200cm treat as outlier
-                        if (abs(ULTRASONIC_heave - Ultrasonic_distance) < 2){
+                        if (fabs(ULTRASONIC_heave - Ultrasonic_distance) < 2){
                             // Convert to meters
                             ULTRASONIC_heave = Ultrasonic_distance;
                         }

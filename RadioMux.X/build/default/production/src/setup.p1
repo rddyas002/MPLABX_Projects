@@ -8065,19 +8065,19 @@ Version 3.2 HI-TECH Software Intermediate Code
 [; ;pic18.h: 146: extern void _delaywdt(unsigned long);
 [; ;pic18.h: 148: extern void _delay3(unsigned char);
 [; ;stdbool.h: 12: typedef unsigned char bool;
-[; ;setup.h: 47: typedef enum {
-[; ;setup.h: 48: ADDRESS_MATCH_WRITE,
-[; ;setup.h: 49: GET_CONFIG_REG,
-[; ;setup.h: 50: GET_BYTE0,
-[; ;setup.h: 51: GET_BYTE1,
-[; ;setup.h: 52: GET_BYTE2,
-[; ;setup.h: 53: GET_BYTE3,
-[; ;setup.h: 54: GET_BYTE4,
-[; ;setup.h: 55: GET_BYTE5,
-[; ;setup.h: 56: GET_CHKSUM,
-[; ;setup.h: 57: NOWHERE
-[; ;setup.h: 58: } SETUP_i2cDecision;
-"60 src/../inc/setup.h
+[; ;setup.h: 49: typedef enum {
+[; ;setup.h: 50: ADDRESS_MATCH_WRITE,
+[; ;setup.h: 51: GET_CONFIG_REG,
+[; ;setup.h: 52: GET_BYTE0,
+[; ;setup.h: 53: GET_BYTE1,
+[; ;setup.h: 54: GET_BYTE2,
+[; ;setup.h: 55: GET_BYTE3,
+[; ;setup.h: 56: GET_BYTE4,
+[; ;setup.h: 57: GET_BYTE5,
+[; ;setup.h: 58: GET_CHKSUM,
+[; ;setup.h: 59: NOWHERE
+[; ;setup.h: 60: } SETUP_i2cDecision;
+"62 src/../inc/setup.h
 [v _ESC_PWM_REG `Vui ~T0 @X0 1 e ]
 [i _ESC_PWM_REG
 -> -> 0 `i `ui
@@ -8102,8 +8102,8 @@ Version 3.2 HI-TECH Software Intermediate Code
 [i _AUX_PWM_REG
 -> -> 0 `i `ui
 ]
-[; ;setup.h: 60: volatile unsigned int ESC_PWM_REG = 0, AIL_PWM_REG = 0, ELEV_PWM_REG = 0, RUDD_PWM_REG = 0, GEAR_PWM_REG = 0, AUX_PWM_REG = 0;
-"61
+[; ;setup.h: 62: volatile unsigned int ESC_PWM_REG = 0, AIL_PWM_REG = 0, ELEV_PWM_REG = 0, RUDD_PWM_REG = 0, GEAR_PWM_REG = 0, AUX_PWM_REG = 0;
+"63
 [v _ESC_PWM_BUFFER_REG `Vui ~T0 @X0 1 e ]
 [i _ESC_PWM_BUFFER_REG
 -> -> 0 `i `ui
@@ -8128,12 +8128,12 @@ Version 3.2 HI-TECH Software Intermediate Code
 [i _AUX_PWM_BUFFER_REG
 -> -> 0 `i `ui
 ]
-[; ;setup.h: 61: volatile unsigned int ESC_PWM_BUFFER_REG = 0, AIL_PWM_BUFFER_REG = 0, ELEV_PWM_BUFFER_REG = 0, RUDD_PWM_BUFFER_REG = 0, GEAR_PWM_BUFFER_REG = 0, AUX_PWM_BUFFER_REG = 0;
-[; ;setup.h: 63: void SETUP_clock(void);
-[; ;setup.h: 64: void SETUP_io(void);
-[; ;setup.h: 65: void SETUP_i2c(void);
-[; ;setup.h: 66: void SETUP_releaseI2C(void);
-[; ;setup.h: 67: void SETUP_PWM(void);
+[; ;setup.h: 63: volatile unsigned int ESC_PWM_BUFFER_REG = 0, AIL_PWM_BUFFER_REG = 0, ELEV_PWM_BUFFER_REG = 0, RUDD_PWM_BUFFER_REG = 0, GEAR_PWM_BUFFER_REG = 0, AUX_PWM_BUFFER_REG = 0;
+[; ;setup.h: 65: void SETUP_clock(void);
+[; ;setup.h: 66: void SETUP_io(void);
+[; ;setup.h: 67: void SETUP_i2c(void);
+[; ;setup.h: 68: void SETUP_releaseI2C(void);
+[; ;setup.h: 69: void SETUP_PWM(void);
 "5 src/setup.c
 [v _SETUP_clock `(v ~T0 @X0 1 ef ]
 {
