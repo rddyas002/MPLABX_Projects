@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include "HardwareProfile.h"
-#include "GenericTypeDefs.h"
+#include <GenericTypeDefs.h>
 #include <math.h>
 #include "MDD File System/FSIO.h"
 #include "spektrumRX.h"
@@ -18,13 +18,23 @@
 #endif
 
 typedef enum{
-            BOOT,
-            IDLE,
-            OKAY,
-            ERROR,
-            FILE_CLOSED,
-            MANUAL
+            SYS_BOOT,
+            SYS_MANUAL,
+            SYS_TAKEOFF,
+            SYS_FLY,
+            SYS_LAND,
+            SYS_ERROR
 } IO_SYSTEM_STATE;
+
+typedef enum{
+            FLY_ATTITUDE,
+            FLY_POSITION
+} IO_FLY_STATE;
+
+typedef enum{
+            LAND_NORMAL,
+            LAND_FORCED
+} IO_LAND_STATE;
 
 typedef enum{
             NO_ERROR,
@@ -87,13 +97,12 @@ typedef struct {
 #define IO_SD_FLUSH                 (10)
 #define IO_DATA_PERIOD              (20)
 #define IO_STATE_PROJECT            (20)
-#define IO_RX_TIMEOUT_CHECK         (5)
 #define IO_CONTROL_PERIOD_MATCH     (3125)
 
 #define IO_SPEED_TIMEOUT            (100)
 
 #define IO_RPM_MAX                  (3500)
-#define IO_RPM_MIN                  (500)
+#define IO_RPM_MIN                  (400)
 #define IO_PWM_SAT_MAX              (0xFF)
 #define IO_PWM_SAT_MIN              (0x00)
 
@@ -120,6 +129,24 @@ typedef struct {
 #define IO_ULTRASONIC_DT_MIN            (37120)
 
 #define IO_RPM_2_RAD_PER_SEC        (2*M_PI/60)
+
+// Interrupt Priorities
+// ADC
+#define IO_ADC_IPL              ipl1
+#define IO_ADC_PRIORITY         ADC_INT_PRI_1
+#define IO_ADC_SUBPRIORITY      ADC_INT_SUB_PRI_3
+// TIMER3
+#define IO_T3_IPL               ipl5
+#define IO_T3_PRIORITY          T3_INT_PRIOR_5
+#define IO_T3_SUBPRIORITY       T3_INT_SUB_PRIOR_3
+// CT
+#define IO_CT_IPL               IPL7SRS
+#define IO_CT_PRIORITY          CT_INT_PRIOR_7
+#define IO_CT_SUBPRIORITY       CT_INT_SUB_PRIOR_2
+// CN
+#define IO_CN_IPL               IPL7SRS
+#define IO_CN_PRIORITY          CHANGE_INT_PRI_7
+#define IO_CN_SUBPRIORITY       INT_SUB_PRIORITY_LEVEL_3
 
 // File System parameters
 #define IO_FS_DMESG "dmesg.txt"
@@ -155,8 +182,6 @@ IO_EXTERN volatile UINT32 IO_get_time_ms(void);
 IO_EXTERN volatile UINT32 IO_updateCoreTime_us(void);
 IO_EXTERN volatile UINT32 IO_getTime_us(void);
 IO_EXTERN void IO_adjIO_time_us(INT32 offset);
-IO_EXTERN bool IO_getSendData(void);
-IO_EXTERN void IO_setSendData(bool val);
 IO_EXTERN bool IO_getLocalControl(void);
 IO_EXTERN void IO_setLocalControl(bool val);
 IO_EXTERN void IO_changeNotificationSetup(void);
@@ -165,14 +190,25 @@ IO_EXTERN void IO_generalLog(float a1, float a2, float a3);
 IO_EXTERN void IO_logRadio(void);
 IO_EXTERN void IO_logControl(void);
 IO_EXTERN void IO_logQuaternion(void);
+IO_EXTERN void IO_SystemIdentification(void);
 IO_EXTERN bool IO_getRadioError(void);
+IO_EXTERN void IO_logRadioMapping(void);
 IO_EXTERN bool IO_getLEDState(void);
 IO_EXTERN volatile UINT32 IO_getLEDON_time(void);
-IO_EXTERN void IO_Control(void);
+//IO_EXTERN void IO_Control(void);
 IO_EXTERN void IO_Control_Int_Enable(void);
 IO_EXTERN void IO_control_exec(void);
 IO_EXTERN void IO_dmesgLog(void);
 IO_EXTERN UINT32 IO_getDataTime(void);
+IO_EXTERN bool IO_writePWMmodule(float esc, float lateral, float longitudinal, float collective, float tail_rate);
+IO_EXTERN float IO_ESC_controller(float ref_speed, float dt);
+IO_EXTERN float IO_getAltitudeReference(float throttle);
+IO_EXTERN void IO_main_control(float dt);
+IO_EXTERN void IO_getRefInputs(float * throttle, float * del_right, float * del_rear,
+        float * del_left, float * alt_ref, float * yaw_ref, volatile float * roll_ref, volatile float * pitch_ref,
+        volatile float * x_ref, volatile float * y_ref);
+IO_EXTERN void IO_getRotorInputs(float * main_collective, float * lat, float * lon);
+IO_EXTERN void IO_setLandState(IO_LAND_STATE state);
 
 IO_EXTERN float IO_getGyroGain_dt(void);
 IO_EXTERN float IO_getUltrasonic_dt(void);
@@ -211,7 +247,6 @@ IO_EXTERN float IO_roll_control(float roll_reference, float dt, bool initialise)
 IO_EXTERN float IO_pitch_control(float pitch_reference, float dt, bool initialise);
 IO_EXTERN void IO_position_control(float x_ref, float y_ref, float * roll_cmd, float * pitch_cmd, float dt, bool initialise);
 IO_EXTERN void IO_shiftData(float data[3]);
-IO_EXTERN float IO_landingRefGen(float dt, bool reset);
 IO_EXTERN float IO_filter_speed(float speed_in, float dt, float wn);
 IO_EXTERN float IO_filter_altitude_prefilter(float alt_in, float dt, float wn);
 IO_EXTERN float IO_filter_yaw_prefilter(float yaw_in, float dt, float wn);
@@ -226,6 +261,8 @@ volatile float IO_longitudinal;
 volatile float IO_lateral;
 volatile float IO_collective;
 volatile float IO_esc;
+volatile float IO_ref_speed;
+volatile float IO_tailrate;
 volatile float IO_roll_ref;
 volatile float IO_pitch_ref;
 volatile float IO_yaw_ref;

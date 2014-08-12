@@ -87,7 +87,10 @@ int main(int argc, char** argv) {
     char temp_buf[256];
     int len = sprintf(temp_buf,"%s\nDebugging log file\n", FIRMWARE_VERSION);
     IO_dmesgMessage(temp_buf, len);
+    SPEKTRUM_logNominal();
 
+    // Boot complete; Set System mode to manual
+    IO_setSystemState(SYS_MANUAL);
     IO_Control_Int_Enable();
     
     // Enable watchdog timer
@@ -109,15 +112,6 @@ int main(int argc, char** argv) {
             }
         #else
 
-        if (SPEKTRUM_isAutoMode()){
-            IO_setSystemState(OKAY);
-            IO_leds_on(50.0);
-        }
-        else{
-            IO_setSystemState(MANUAL);
-            IO_setupPWM_default();
-        }
-
         if (IO_getSDFlush()){
             IO_flush_FS();
             IO_setSDFlush(false);
@@ -132,7 +126,6 @@ int main(int argc, char** argv) {
         ClearWDT();
     }
 
-    IO_terminate_FS();
     return (EXIT_SUCCESS);
 }
 

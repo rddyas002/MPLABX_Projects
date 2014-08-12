@@ -50,10 +50,20 @@ void SPEKTRUMRX_initialize(void){
     INTClearFlag(INT_SOURCE_UART_TX(SPEKTRUM_UART));
     INTEnable(INT_SOURCE_UART_RX(SPEKTRUM_UART), INT_ENABLED);
     INTEnable(INT_SOURCE_UART_TX(SPEKTRUM_UART), INT_DISABLED);
-    INTSetVectorPriority(INT_VECTOR_UART(SPEKTRUM_UART), SPEKTRUM_INT_PRIORITY);
-    INTSetVectorSubPriority(INT_VECTOR_UART(SPEKTRUM_UART), SPEKTRUM_INT_SUBPRIORITY);
+    INTSetVectorPriority(INT_VECTOR_UART(SPEKTRUM_UART), SPEKTRUM_PRIORITY);
+    INTSetVectorSubPriority(INT_VECTOR_UART(SPEKTRUM_UART), SPEKTRUM_SUBPRIORITY);
 
     SPEKTRUM_findNominal();
+}
+
+void SPEKTRUM_logNominal(void){
+    char SPEKTRUM_buffer[256] = {0};
+    // Log nominal values in dmesg
+    int sdlen = sprintf(&SPEKTRUM_buffer[0],"NOM>>%d,%d,%d,%d,%d,%d,%lu\r\n",
+                        SPEKTRUM_ESC_NOMINAL, SPEKTRUM_RIGHT_NOMINAL, SPEKTRUM_REAR_NOMINAL,
+                        SPEKTRUM_RUDDER_NOMINAL, SPEKTRUM_GAIN_NOMINAL, SPEKTRUM_LEFT_NOMINAL,
+                        IO_updateCoreTime_us());
+    IO_dmesgMessage(&SPEKTRUM_buffer[0], sdlen);
 }
 
 void SPEKTRUM_findNominal(void){
@@ -274,7 +284,7 @@ void SPEKTRUM_setAutoMode(bool val){
 /* 
     Interrupt service routine for the Spektrum Module
 */
-void __ISR(_UART_3_VECTOR, ipl6) UART_SPEKTRUM( void)
+void __ISR(_UART_3_VECTOR, SPEKTRUM_IPL) UART_SPEKTRUM( void)
 {
     static char prev_byte = 0, current_byte = 0;
 

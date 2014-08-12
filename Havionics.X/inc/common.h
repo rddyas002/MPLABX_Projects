@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <math.h>
+#include <GenericTypeDefs.h>
 
 #define uchar unsigned char
 #define ushort unsigned short int

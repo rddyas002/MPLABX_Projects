@@ -5,6 +5,7 @@
 
 RN131_data_struct RN131_data;
 RN131_states_struct RN131_states;
+RN131_packet_struct RN131_packet;
 bool RN131_dataReceived = false;
 
 DmaChannel RN131_DMA_TX_CHN = RN131_DMA_TX_CHANNEL;
@@ -18,11 +19,14 @@ UINT32 RN131_delay_us_0 = 0;
 
 void RN131_setupUART(void);
 void RN131_setupDMA_TX(void);
-void RN131_setupDMA_RX(void);
+void RN131_setupDMA_RX_pattern(void);
+void RN131_setupDMA_RX_fixed(void);
 
 void RN131_setupDMA(void){
     memset(&RN131_data, 0, sizeof(RN131_data_struct));
     memset(&RN131_states, 0, sizeof(RN131_states_struct));
+    memset(&RN131_packet, 0, sizeof(RN131_packet_struct));
+    RN131_states.config = 0x00;
     RN131_data.DMA_MODE = true;
 
     RN131_setupUART();
@@ -32,7 +36,7 @@ void RN131_setupDMA(void){
     INTClearFlag(INT_SOURCE_UART_RX(RN131_UART));
 
     RN131_setupDMA_TX();
-    RN131_setupDMA_RX();
+    RN131_setupDMA_RX_pattern();
 
     // Enable the chn
     DmaChnEnable(RN131_DMA_RX_CHN);
@@ -67,12 +71,12 @@ void RN131_setupDMA_TX(void){
     // Enable the transfer done interrupt
     DmaChnSetEvEnableFlags(RN131_DMA_TX_CHN, DMA_EV_BLOCK_DONE);
     // Set DMA3 interrupt priority
-    INTSetVectorPriority(INT_VECTOR_DMA(RN131_DMA_TX_CHN), INT_PRIORITY_LEVEL_5);
+    INTSetVectorPriority(INT_VECTOR_DMA(RN131_DMA_TX_CHN), RN131_DMATX_PRIORITY);
     // Set DMA3 interrupt sub-priority
-    INTSetVectorSubPriority(INT_VECTOR_DMA(RN131_DMA_TX_CHN), INT_SUB_PRIORITY_LEVEL_3);
+    INTSetVectorSubPriority(INT_VECTOR_DMA(RN131_DMA_TX_CHN), RN131_DMATX_SUBPRIORITY);
 }
 
-void RN131_setupDMA_RX(void){
+void RN131_setupDMA_RX_pattern(void){
     // Use a DMA channel for picking up data from wifi
     DmaChnOpen(RN131_DMA_RX_CHN, RN131_DMA_RX_PRIORITY, DMA_OPEN_AUTO);
     DmaChnSetMatchPattern(RN131_DMA_RX_CHN, '\n');	// interrupt when \n is encountered
@@ -84,9 +88,25 @@ void RN131_setupDMA_RX(void){
     // Enable the transfer done interrupt
     DmaChnSetEvEnableFlags(RN131_DMA_RX_CHN, DMA_EV_BLOCK_DONE);
     // Set DMA4 interrupt priority
-    INTSetVectorPriority(INT_VECTOR_DMA(RN131_DMA_RX_CHN), INT_PRIORITY_LEVEL_5);
+    INTSetVectorPriority(INT_VECTOR_DMA(RN131_DMA_RX_CHN), RN131_DMARX_PRIORITY);
     // Set DMA4 interrupt sub-priority
-    INTSetVectorSubPriority(INT_VECTOR_DMA(RN131_DMA_RX_CHN), INT_SUB_PRIORITY_LEVEL_0);
+    INTSetVectorSubPriority(INT_VECTOR_DMA(RN131_DMA_RX_CHN), RN131_DMARX_SUBPRIORITY);
+}
+
+void RN131_setupDMA_RX_fixed(void){
+    // Use a DMA channel for picking up data from wifi
+    DmaChnOpen(RN131_DMA_RX_CHN, RN131_DMA_RX_PRIORITY, DMA_OPEN_AUTO);
+    // Set the events: set UART1 rx interrupt to begin transfer
+    // Stop transfer when block complete: block complete when transferred bytes complete
+    DmaChnSetEventControl(RN131_DMA_RX_CHN, DMA_EV_START_IRQ_EN|DMA_EV_START_IRQ(_UART1_RX_IRQ));
+    // Set the transfer source and dest addresses, source and dest sizes and the cell size
+    DmaChnSetTxfer(RN131_DMA_RX_CHN, (void*)&U1RXREG, (void*)&(RN131_data.rx_buffer[0]), 1, RN131_BUFFER_SIZE, RN131_RX_DATA_SIZE);
+    // Enable the transfer done interrupt
+    DmaChnSetEvEnableFlags(RN131_DMA_RX_CHN, DMA_EV_BLOCK_DONE);
+    // Set DMA4 interrupt priority
+    INTSetVectorPriority(INT_VECTOR_DMA(RN131_DMA_RX_CHN), RN131_DMARX_PRIORITY);
+    // Set DMA4 interrupt sub-priority
+    INTSetVectorSubPriority(INT_VECTOR_DMA(RN131_DMA_RX_CHN), RN131_DMARX_SUBPRIORITY);
 }
 
 /* Return & set function */
@@ -208,36 +228,59 @@ void RN131_SendDataPacket(unsigned short int data[], unsigned char data_length){
     }
 }
 
+void RN131_decodeFixedData(void){
+    UINT16 checksum_calc = 0x00;
+    int i = 0;
+    // First check format and checksum
+    if ((RN131_data.rxd_msglen != 0) &&
+            (RN131_data.rx_buffered[0] == '*') &&
+            (RN131_data.rx_buffered[1] == '#') &&
+            (RN131_data.rx_buffered[38] == '\r')){
+        for (i = 0; i < RN131_RX_DATA_SIZE - 2; i++){
+            checksum_calc ^= RN131_data.rx_buffered[i];
+        }
+
+        if (checksum_calc == RN131_data.rx_buffered[37]){
+            // copy direct into struct
+            memcpy(&RN131_packet, &RN131_data.rx_buffered[2], RN131_PACKET_SIZEOF);
+        }
+        else
+            return;
+    }
+}
+
 void RN131_decodeData(void){
     int i = 0;
     UINT16 checksum_calc = 0x00;
     char checksum_lsb = 0, checksum_msb = 0;
     UINT16 checksum_sent = 0x0000;
-    char data_bin[72] = {0};
+    char data_bin[80] = {0};
     char data_bin_index = 0;
 
     if ((RN131_data.rxd_msglen != 0) &&
             (RN131_data.rx_buffered[0] == '*') &&
             (RN131_data.rx_buffered[1] == '#') &&
-            (RN131_data.rx_buffered[74] == '\r')){
+            (RN131_data.rx_buffered[76] == '\r')){
         // Compute checksum
-        for (i = 0; i < 69; i++){
+        for (i = 0; i < 71; i++){
             checksum_calc ^= (UINT16)((unsigned char)RN131_data.rx_buffered[i] << 8) | (RN131_data.rx_buffered[i+1]);
         }
         
         // isolate received checksum
-        RN131_ASCIIHex2Byte(&RN131_data.rx_buffered[70], &checksum_lsb);
-        RN131_ASCIIHex2Byte(&RN131_data.rx_buffered[72], &checksum_msb);
+        RN131_ASCIIHex2Byte(&RN131_data.rx_buffered[72], &checksum_lsb);
+        RN131_ASCIIHex2Byte(&RN131_data.rx_buffered[74], &checksum_msb);
         checksum_sent = (UINT16)(((UCHAR)checksum_msb << 8) | checksum_lsb);
         if (checksum_calc == checksum_sent){
             // convert ASCII hex data to binary
-            for (i = 2; i < 69; i+=2){
+            for (i = 2; i < 71; i+=2){
                 RN131_ASCIIHex2Byte(&RN131_data.rx_buffered[i], &data_bin[data_bin_index++]);
             }
 
-            if (data_bin_index == 34){
+            if (data_bin_index == 35){
                 RN131_decodeBinary(&data_bin[0]);
                 RN131_dataReceived = true;
+                // Clear timeout since valid data has arrived
+                RN131_data.timeout_rx = 0;                
             }
         }
 
@@ -252,7 +295,7 @@ void RN131_decodeBinary(const char * rx_data){
 
     UINT16 temp_seq = 0;
     // Check sequence number [because udp does not ensure order under load]
-    memcpy(&temp_seq, (rx_data + 32), 2);
+    memcpy(&temp_seq, (rx_data + 33), 2);
     if (temp_seq < RN131_states.received_key){
 //        char buffer[128];
 //        int len = sprintf(buffer,"[%lu] ERR: SEQ_ORDER\r\n",IO_get_time_ms());
@@ -273,9 +316,11 @@ void RN131_decodeBinary(const char * rx_data){
     memcpy(&RN131_states.quaternion_2, (rx_data + 20), 4);
     memcpy(&RN131_states.quaternion_3, (rx_data + 24), 4);
 
-    memcpy(&RN131_states.received_key_pctime, (rx_data + 28), 4);
+    memcpy(&RN131_states.config, (rx_data + 28), 1);
 
-    memcpy(&RN131_states.received_key, (rx_data + 32), 2);
+    memcpy(&RN131_states.received_key_pctime, (rx_data + 29), 4);
+
+    memcpy(&RN131_states.received_key, (rx_data + 33), 2);
 
     RN131_states.received_uavtime = IO_updateCoreTime_us();
 
@@ -300,6 +345,10 @@ void RN131_decodeBinary(const char * rx_data){
             }
         }
     }
+}
+
+bool RN131_ekfStable(void){
+    return (RN131_states.config == 0x0B) ? true : false;
 }
 
 UINT32 RN131_getDelay_us(void){
@@ -462,6 +511,18 @@ short int RN131_getTz(void){
     return RN131_states.translation_z;
 }
 
+short int RN131_getVx(void){
+    return RN131_states.velocity_x;
+}
+
+short int RN131_getVy(void){
+    return RN131_states.velocity_y;
+}
+
+short int RN131_getVz(void){
+    return RN131_states.velocity_z;
+}
+
 float RN131_getQuaternion_q0(void){
     return RN131_states.quaternion_0;
 }
@@ -535,7 +596,7 @@ int RN131_strlen(char data[], int max_len, char match){
 /**************************************************************/
 
 // Handler for wifi data tx using DMA channel
-void __ISR(_DMA3_VECTOR, ipl5) wifiTxDmaHandler(void)
+void __ISR(_DMA3_VECTOR, RN131_DMATX_IPL) wifiTxDmaHandler(void)
 {
     int	evFlags;
     // Clear interrupt flag
@@ -556,7 +617,7 @@ void __ISR(_DMA3_VECTOR, ipl5) wifiTxDmaHandler(void)
 }
 
 // Handler for wifi data rx using DMA channel
-void __ISR(_DMA_4_VECTOR, ipl5) wifiRxDmaHandler(void)
+void __ISR(_DMA_4_VECTOR, RN131_DMARX_IPL) wifiRxDmaHandler(void)
 {
     // This routine runs when a complete block has been received from the wifi module
     // The termination byte is '\n'
@@ -569,20 +630,23 @@ void __ISR(_DMA_4_VECTOR, ipl5) wifiRxDmaHandler(void)
 
     // If interrupt due to a block event (termination) then proceed
     if(evFlags & DMA_EV_BLOCK_DONE){
-        // expect 68 bytes
+#if defined (RN131_PATTERN_MATCH)
         RN131_data.rx_msglen = strlen(&RN131_data.rx_buffer[0]);
         RN131_data.rx_buffer[RN131_data.rx_msglen] = 0;
 
         memcpy(&RN131_data.rx_buffered[0],&RN131_data.rx_buffer[0], RN131_data.rx_msglen);
         RN131_data.rxd_msglen = RN131_data.rx_msglen;
 
-        // Clear timeout since data has arrived
-        RN131_data.timeout_rx = 0;
-
         RN131_decodeData();
-
+#else
+        memcpy(&RN131_data.rx_buffered[0],&RN131_data.rx_buffer[0], RN131_RX_DATA_SIZE);
+        RN131_data.rxd_msglen = RN131_RX_DATA_SIZE;
+        RN131_decodeFixedData();
+#endif
 	DmaChnClrEvFlags(RN131_DMA_RX_CHN, DMA_EV_BLOCK_DONE);
         // Clear UART1Rx interrupt flag
 	INTClearFlag(INT_SOURCE_UART_RX(RN131_UART));
     }
 }
+
+#undef RN131_H_IMPORT

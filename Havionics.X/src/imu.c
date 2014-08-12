@@ -107,7 +107,7 @@ void IMU_propagateState(float dt){
 
     // determine rate correction factor
     // If recent valid data had come through comms do est
-    if (!RN131_getTimeout()){
+    if (RN131_ekfStable() && !RN131_getTimeout()){
         float IMU_q_conj[4] = {IMU_q[0],-IMU_q[1],-IMU_q[2],-IMU_q[3]};
         float Camera_quaternion[4] = {RN131_getQuaternion_q0(), RN131_getQuaternion_q1(), RN131_getQuaternion_q2(), RN131_getQuaternion_q3()};
         // get quaternion error
@@ -340,3 +340,5 @@ void Reb(const float q[4], const float x[3], float y[3]){
     }
   }
 }
+
+#undef IMU_H_IMPORT

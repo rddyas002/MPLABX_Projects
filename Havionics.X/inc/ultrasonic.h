@@ -13,6 +13,12 @@
 #define ULTRASONIC_BAUD             9600
 #define ULTRASONIC_BUFFER_SIZE      10
 
+// Interrupt Priorities
+// Ultrasonic
+#define ULTRASONIC_IPL              ipl3
+#define ULTRASONIC_PRIORITY         INT_PRIORITY_LEVEL_3
+#define ULTRASONIC_SUBPRIORITY      INT_SUB_PRIORITY_LEVEL_3
+
 ULTRASONIC_EXTERN void ULTRASONIC_setup(void);
 ULTRASONIC_EXTERN unsigned short int ULTRASONIC_getData(void);
 ULTRASONIC_EXTERN volatile float ULTRASONIC_getHeave(void);

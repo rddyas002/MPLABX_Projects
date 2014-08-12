@@ -35,9 +35,9 @@ void ULTRASONIC_setup(void){
     DmaChnSetEvEnableFlags(ULTRASONIC_DMA_RX_CHN, DMA_EV_BLOCK_DONE);
 
     // set DMA1 interrupt priority
-    INTSetVectorPriority(INT_VECTOR_DMA(ULTRASONIC_DMA_RX_CHN), INT_PRIORITY_LEVEL_3);
+    INTSetVectorPriority(INT_VECTOR_DMA(ULTRASONIC_DMA_RX_CHN), ULTRASONIC_PRIORITY);
     // set DMA1 interrupt sub-priority
-    INTSetVectorSubPriority(INT_VECTOR_DMA(ULTRASONIC_DMA_RX_CHN), INT_SUB_PRIORITY_LEVEL_3);
+    INTSetVectorSubPriority(INT_VECTOR_DMA(ULTRASONIC_DMA_RX_CHN), ULTRASONIC_SUBPRIORITY);
     // Enable the ultrasonic_chn interrupt in the INT controller
     INTEnable(INT_SOURCE_DMA(ULTRASONIC_DMA_RX_CHN), INT_ENABLED);
 
@@ -61,12 +61,7 @@ bool ULTRASONIC_setUpdatedFalse(void){
     data_updated = false;
 }
 
-/*
-	Handler for the ultrasonic sensor - uses DMA channel
-	PRIORITY: 3
-	SUBPRIORITY: 1
-*/
-void __ISR(_DMA1_VECTOR, ipl3) ultrasonicDmaHandler(void)
+void __ISR(_DMA1_VECTOR, ULTRASONIC_IPL) ultrasonicDmaHandler(void)
 {
     int	evFlags;
     // Clear interrupt flag

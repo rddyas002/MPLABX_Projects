@@ -4,7 +4,7 @@
     /* USB defines */
     //#define USE_USB
     //#define USE_SELF_POWER_SENSE_IO
-    //#define DEBUG
+    #define DEBUG
     #define tris_self_power         TRISDbits.TRISD5    // Input // Bit D5 is also used in the final design
     #define self_power              1
 
