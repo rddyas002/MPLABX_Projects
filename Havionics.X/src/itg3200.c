@@ -8,6 +8,14 @@ float ITG3200_biasX = 0;
 float ITG3200_biasY = 0;
 float ITG3200_biasZ = 0;
 
+// Gyroscope temperature calibration parameters
+float ITG3200_PX1 = (0.0338);
+float ITG3200_PX2 = (0.4909);
+float ITG3200_PY1 = (0.0066);
+float ITG3200_PY2 = (-3.4082);
+float ITG3200_PZ1 = (-0.0329);
+float ITG3200_PZ2 = (0.9353);
+
 bool ITG3200_setup(void){
     uchar res;
 
@@ -28,6 +36,16 @@ bool ITG3200_setup(void){
     wait(10000);
 
     ITG3200_calibrate();
+}
+
+void ITG3200_setCalibrationCoefficients(float px1, float px2,
+        float py1, float py2, float pz1, float pz2){
+    ITG3200_PX1 = px1;
+    ITG3200_PX2 = px2;
+    ITG3200_PY1 = py1;
+    ITG3200_PY2 = py2;
+    ITG3200_PZ1 = pz1;
+    ITG3200_PZ2 = pz2;
 }
 
 void ITG3200_calibrate(void){

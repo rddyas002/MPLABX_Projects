@@ -61,6 +61,7 @@ int main(int argc, char** argv) {
         InitializeUSB();
     #endif
 
+    IO_initialize_FS();
     IO_setup();
     RN131_setupDMA();
    
@@ -78,8 +79,8 @@ int main(int argc, char** argv) {
     IO_changeNotificationSetup();
     IO_getRadioNominal();
     IO_LED_init(2);
-    // initialize SD file system
-    IO_initialize_FS();
+//     initialize SD file system
+    IO_initialiseLogFiles();
     IO_LED_init(3);
 
     RN131_setDataReceived(true);

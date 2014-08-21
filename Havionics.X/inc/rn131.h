@@ -27,6 +27,7 @@
 #define RN131_PROCESS_LATENCY   (210)   //us
 #define RN131_RX_DATA_SIZE      (39)
 #define RN131_PACKET_SIZEOF     (36)
+#define RN131_OFFSET_FILTER_N   (10)
 
 #define RN131_DMA_TX_PRIORITY   DMA_CHN_PRI2
 #define RN131_DMA_RX_PRIORITY   DMA_CHN_PRI3
@@ -143,9 +144,10 @@ RN131_EXTERN float RN131_get_tz(void);
 RN131_EXTERN short int RN131_getTx(void);
 RN131_EXTERN short int RN131_getTy(void);
 RN131_EXTERN short int RN131_getTz(void);
-RN131_EXTERN short int RN131_getVx(void);
-RN131_EXTERN short int RN131_getVy(void);
-RN131_EXTERN short int RN131_getVz(void);
+RN131_EXTERN short int * RN131_getVx(void);
+RN131_EXTERN short int * RN131_getVy(void);
+RN131_EXTERN short int * RN131_getVz(void);
+RN131_EXTERN bool RN131_extrapolatePosition(float * tx, float * ty, float * tz);
 RN131_EXTERN float RN131_getQuaternion_q0(void);
 RN131_EXTERN float RN131_getQuaternion_q1(void);
 RN131_EXTERN float RN131_getQuaternion_q2(void);
@@ -163,6 +165,8 @@ RN131_EXTERN UINT32 RN131_getDelay_us(void);
 RN131_EXTERN INT32 RN131_getOffset_us(void);
 RN131_EXTERN UINT32 RN131_getDelay_us_0(void);
 RN131_EXTERN INT32 RN131_getOffset_us_0(void);
+RN131_EXTERN INT32 RN131_OffsetFilter(INT32 offset);
+RN131_EXTERN INT32 * RN131_getFilteredOffset(void);
 RN131_EXTERN void RN131_logSync(void);
 RN131_EXTERN bool RN131_ekfStable(void);
 

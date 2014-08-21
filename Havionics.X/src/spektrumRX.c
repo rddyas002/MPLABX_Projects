@@ -185,8 +185,8 @@ bool SPEKTRUM_timeoutInc(void){
         return false;
 }
 
-int SPEKTRUM_getTimeout(void){
-    return SPEKTRUM_timeout_ms_var;
+bool SPEKTRUM_getTimeout(void){
+    return (SPEKTRUM_timeout_ms_var > SPEKTRUM_TIMEOUT) ? true : false;
 }
 
 UINT16 SPEKTRUM_getChannel0(void){
@@ -287,9 +287,7 @@ void SPEKTRUM_setAutoMode(bool val){
 void __ISR(_UART_3_VECTOR, SPEKTRUM_IPL) UART_SPEKTRUM( void)
 {
     static char prev_byte = 0, current_byte = 0;
-
-    if (INTGetFlag(INT_SOURCE_UART_RX(SPEKTRUM_UART)))
-    {
+    if (INTGetFlag(INT_SOURCE_UART_RX(SPEKTRUM_UART))){
     	while(U3STAbits.URXDA)
     	{
             current_byte = UARTGetDataByte(SPEKTRUM_UART);
@@ -302,8 +300,7 @@ void __ISR(_UART_3_VECTOR, SPEKTRUM_IPL) UART_SPEKTRUM( void)
                 SPEKTRUM_rawData.buffer[SPEKTRUM_rawData.index++] = current_byte;
 
             // If complete packet has been received, form words and register data
-            if (SPEKTRUM_rawData.index == 14)
-            {
+            if (SPEKTRUM_rawData.index == 14){
                 SPEKTRUM_decodePacket();
                 SPEKTRUM_rawData.packet_complete = true;
             }

@@ -2,8 +2,7 @@
 
 #include "imu.h"
 
-void ADXL345_setup(void)
-{
+void ADXL345_setup(void){
     uchar res;
 
     // initialize struct
@@ -96,16 +95,16 @@ void ADXL345_readData(void)
 	switch(counter)
 	{
             case ACCEL_X:
-		adxl345_data.x_16bit = temp_data - adxl345_data.bias_x_16bit;
-                adxl345_data.x_float = (float)temp_data / ADXL345_TO_G_X - adxl345_data.bias_x_float;
+		adxl345_data.x_16bit = temp_data;
+                adxl345_data.x_float = (float)temp_data / ADXL345_TO_G_X;
 		break;
             case ACCEL_Y:
-		adxl345_data.y_16bit = temp_data - adxl345_data.bias_y_16bit;
-                adxl345_data.y_float = (float)temp_data / ADXL345_TO_G_Y - adxl345_data.bias_y_float;
+		adxl345_data.y_16bit = temp_data;
+                adxl345_data.y_float = (float)temp_data / ADXL345_TO_G_Y;
             	break;
             case ACCEL_Z:
-                adxl345_data.z_16bit = -temp_data - adxl345_data.bias_z_16bit;
-                adxl345_data.z_float = -(float)temp_data / ADXL345_TO_G_Z - adxl345_data.bias_z_float;
+                adxl345_data.z_16bit = -temp_data;
+                adxl345_data.z_float = -(float)temp_data / ADXL345_TO_G_Z;
 		break;
 	}
 

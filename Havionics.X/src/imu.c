@@ -5,6 +5,7 @@
 
 bool IMU_i2cOpen = false;
 
+// in radians
 float IMU_roll = 0;
 float IMU_pitch = 0;
 float IMU_yaw = 0;
@@ -141,19 +142,20 @@ void IMU_propagateState(float dt){
 
     float quat_ret[4], temp_yaw = 0;
     IMU_rotateXby180(&IMU_q[0],&quat_ret[0]);
+    // returns radians
     IMU_quaternion2euler(quat_ret, &IMU_roll, &IMU_pitch, &temp_yaw);
 
     // Phase wrap yaw angle
-    int yaw_diff = (int)COM_round((IMU_yaw - temp_yaw)/360);
-    IMU_yaw = temp_yaw + yaw_diff*360;
+    int yaw_diff = (int)COM_round((IMU_yaw - temp_yaw)/(2*M_PI));
+    IMU_yaw = temp_yaw + yaw_diff*(2*M_PI);
 }
 
 void IMU_quaternion2euler(float q[4], float * roll, float * pitch, float * yaw){
   *roll = atan2(2.0 * (q[0] * q[1] + q[2] * q[3]), 1.0 - 2.0 *
-                        (pow(q[1], 2.0) + pow(q[2], 2.0))) * 180.0 / 3.1415926535897931;
-  *pitch = asin(2.0 * (q[0] * q[2] - q[3] * q[1])) * 180.0 / 3.1415926535897931;
+                        (pow(q[1], 2.0) + pow(q[2], 2.0)));
+  *pitch = asin(2.0 * (q[0] * q[2] - q[3] * q[1]));
   *yaw = atan2(2.0 * (q[0] * q[3] + q[1] * q[2]), 1.0 - 2.0 *
-                       (pow(q[2], 2.0) + pow(q[3], 2.0))) * 180.0 / 3.1415926535897931;
+                       (pow(q[2], 2.0) + pow(q[3], 2.0)));
 }
 
 
@@ -194,32 +196,31 @@ void IMU_rotateXby180(const float q_in[4], float q_out[4]){
     q_out[3] =  q_in[2];
 }
 
-
-float IMU_getRoll(void){
-    return IMU_roll;
+float * IMU_getRoll(void){
+    return &IMU_roll;
 }
 
-float IMU_getPitch(void){
-    return IMU_pitch;
+float * IMU_getPitch(void){
+    return &IMU_pitch;
 }
 
-float IMU_getYaw(void){
-    return IMU_yaw;
+float * IMU_getYaw(void){
+    return &IMU_yaw;
 }
 
 INT16 IMU_getRoll16BIT(void){
     // Gives 0.01 degree resolution on receive side
-    return (INT16)(IMU_roll*100);
+    return (INT16)(IMU_roll*18000/M_PI);
 }
 
 INT16 IMU_getPitch16BIT(void){
     // Gives 0.01 degree resolution on receive side
-    return (INT16)(IMU_pitch*100);
+    return (INT16)(IMU_pitch*18000/M_PI);
 }
 
 INT16 IMU_getYaw16BIT(void){
     // Gives 0.01 degree resolution on receive side
-    return (INT16)(IMU_yaw*100);
+    return (INT16)(IMU_yaw*18000/M_PI);
 }
 
 float * IMU_getQuaternion(void){

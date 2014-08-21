@@ -36,14 +36,6 @@
 #define ITG3200_CALIBRATE_BITSHIFT (9)
 #define ITG3200_CALIBRATE_ITERATION 1000
 
-// Gyroscope temperature calibration parameters
-#define ITG3200_PX1     (0.0338)
-#define ITG3200_PX2     (0.4909)
-#define ITG3200_PY1     (0.0066)
-#define ITG3200_PY2     (-3.4082)
-#define ITG3200_PZ1     (-0.0329)
-#define ITG3200_PZ2     (0.9353)
-
 #define ITG3200_FILTER_N    (30)
 
 typedef struct {
@@ -80,6 +72,8 @@ ITG3200_EXTERN struct_itg3200 itg3200_data;
 ITG3200_EXTERN bool ITG3200_setup(void);
 ITG3200_EXTERN void ITG3200_readData(void);
 ITG3200_EXTERN void ITG3200_calibrate(void);
+ITG3200_EXTERN void ITG3200_setCalibrationCoefficients(float px1, float px2,
+        float py1, float py2, float pz1, float pz2);
 
 // return member variables
 ITG3200_EXTERN short int ITG3200_getx(void);

@@ -35,6 +35,7 @@ volatile bool IO_stateProject = false;
 volatile bool IO_sdFlush = false;
 volatile bool IO_closeFiles = false;
 volatile UINT8 IO_gyro_gain = 111;
+volatile UINT8 IO_statusReg = 0x00;
 
 /* Mutex type variables */
 volatile bool IO_coreupdate_mutex = false;
@@ -48,6 +49,8 @@ void IO_delayUnder200ms(unsigned int val);
 bool IO_write_FS(IO_file * io_file, char * data, UINT16 len);
 bool IO_write_FSwInt(IO_file * io_file, char * data, UINT16 len);
 bool IO_flush_FS(void);
+void IO_getConfiguration(void);
+int IO_getLine(FSFILE * fd, char * string);
 
 #define CONFIG (CN_ON | CN_IDLE_CON)
 #define PINS (CN3_ENABLE | CN4_ENABLE | CN5_ENABLE | CN6_ENABLE | CN7_ENABLE | CN15_ENABLE | CN16_ENABLE | CN19_ENABLE)
@@ -80,6 +83,8 @@ volatile UINT8 IO_PWM_packet[10] = {0};
 #define IO_ROLL_ANGLE_UPPER_LIMIT   (30*M_PI/180)
 #define IO_LATERAL_UPPER_LIMIT  (180)
 #define IO_LATERAL_LOWER_LIMIT  (-180)
+#define IO_LAT_LOWER_LIMIT      (-500)
+#define IO_LAT_UPPER_LIMIT      (500)
 
 // **********************************
 // Pitch channel control parameters
@@ -95,6 +100,8 @@ volatile UINT8 IO_PWM_packet[10] = {0};
 #define IO_PITCH_ANGLE_UPPER_LIMIT   (30*M_PI/180)
 #define IO_LONGITUDINAL_UPPER_LIMIT (110)
 #define IO_LONGITUDINAL_LOWER_LIMIT (-110)
+#define IO_LON_LOWER_LIMIT      (-500)
+#define IO_LON_UPPER_LIMIT      (500)
 
 // ***********************************
 // Position control
@@ -150,18 +157,20 @@ volatile UINT8 IO_PWM_packet[10] = {0};
 #define IO_COLLECTIVE_LAND      (100)
 #define IO_LANDING_HEIGHT       (0.3)
 #define IO_COLLECTIVE_LAND_T0   (125)
+#define IO_COL_UPPER_LIMIT      (500)
+#define IO_COL_LOWER_LIMIT      (0)
 
 // **********************************
 // Yaw channel control parameters
 // ***********************************
-#define IO_YAW_KP          (87)
+#define IO_YAW_KP          (60)//(87)
 #define IO_YAW_OMEGA_LEAD  (1.5)
 #define IO_YAW_OMEGA_LAG   (40)
 #define IO_YAW_OMEGA_TI    (1.5)
 #define IO_YAW_UPPER_LIMIT (326)//(191)
 #define IO_YAW_LOWER_LIMIT (-138)//(-274)
 #define IO_YAW_LPF_WN        (5)
-#define IO_YAW_ANGLE_LIMIT (360)
+#define IO_YAW_ANGLE_LIMIT (2*M_PI)
 
 // Speed control parameters
 // Input PWM 0-255, Output speed rad/s
@@ -203,6 +212,8 @@ void IO_setup(void){
     IO_enableLevelShifter1(true);
     IO_enableLevelShifter2(true);
 
+    IO_getConfiguration();
+
     // Setup PWM
     IO_setupPWM();
 
@@ -224,6 +235,59 @@ void IO_setup(void){
     IO_tailrate = 0;
     IO_x_ref = 0;
     IO_y_ref = 0;
+}
+
+void IO_getConfiguration(void){
+   // Open file in read mode
+   FSFILE * fd = FSfopen ("helicopter.conf", "r");
+   if (fd == NULL)
+      while(1);
+
+   char string_temp[128] = {0};
+   float itg3200_px1 = 0;
+   float itg3200_px2 = 0;
+   float itg3200_py1 = 0;
+   float itg3200_py2 = 0;
+   float itg3200_pz1 = 0;
+   float itg3200_pz2 = 0;
+   int parameters = 0;
+   IO_getLine(fd, &string_temp[0]);
+   parameters = sscanf(string_temp,"ITG3200_PX1=%f\n",&itg3200_px1);
+   IO_getLine(fd, &string_temp[0]);
+   parameters += sscanf(string_temp,"ITG3200_PX2=%f\n",&itg3200_px2);
+   IO_getLine(fd, &string_temp[0]);
+   parameters += sscanf(string_temp,"ITG3200_PY1=%f\n",&itg3200_py1);
+   IO_getLine(fd, &string_temp[0]);
+   parameters += sscanf(string_temp,"ITG3200_PY2=%f\n",&itg3200_py2);
+   IO_getLine(fd, &string_temp[0]);
+   parameters += sscanf(string_temp,"ITG3200_PZ1=%f\n",&itg3200_pz1);
+   IO_getLine(fd, &string_temp[0]);
+   parameters += sscanf(string_temp,"ITG3200_PZ2=%f\n",&itg3200_pz2);
+
+   // if close file returns 1 or parameter number does not matched halt
+   if (FSfclose(fd) || (parameters != CONFIG_PARAMETERS))
+      while(1);
+
+   // Update gyro temperature compensation parameters
+   ITG3200_setCalibrationCoefficients(itg3200_px1, itg3200_px2,
+        itg3200_py1, itg3200_py2, itg3200_pz1, itg3200_pz2);
+}
+
+int IO_getLine(FSFILE * fd, char * string){
+    int numbytes = 0;
+
+    if (FSfread (string, 1, 1, fd) != 1)
+        while(1);
+    numbytes++;
+    
+    while(*string != '\n'){
+       string++;
+       if (FSfread (string, 1, 1, fd) != 1)
+          while(1);
+       numbytes++;
+    }
+    string++;
+    *string = '\0';
 }
 
 void IO_Control_Int_Enable(void){
@@ -324,17 +388,19 @@ void IO_changeNotificationSetup(void){
     INTSetVectorSubPriority(_CHANGE_NOTICE_VECTOR, IO_CN_SUBPRIORITY);
 }
 
+void IO_initialiseLogFiles(void){
+    IO_initializeFile(&IO_log, IO_FS_LOG);
+
+#if defined (DEBUG)
+    IO_initializeFile(&IO_dmesg, IO_FS_DMESG);
+#endif
+}
+
 void IO_initialize_FS(void){
     // Wait here until SD card responds with idle
     while(!MDD_SDSPI_MediaDetect());
     // Initialize file system
     while (!FSInit());
-
-    IO_initializeFile(&IO_log, IO_FS_LOG);
-    
-#if defined (DEBUG)
-    IO_initializeFile(&IO_dmesg, IO_FS_DMESG);
-#endif
 }
 
 bool IO_initializeFile(IO_file * IO_file_ds, const char * IO_file_name){
@@ -453,6 +519,7 @@ bool IO_flush_file(IO_file * io_file){
     io_file->flush_active = true;
     // only if main buffer is full (512), do a write
     if (io_file->buffer_overflow && io_file->file_opened){
+        IO_DEBUG_LAT_HIGH();
         if (FSfwrite (io_file->data_buffer, 1, io_file->write_length, io_file->fsFile) != io_file->write_length){
             io_file->error = WRITE_ERROR;
             io_file->file_opened = false;
@@ -467,8 +534,10 @@ bool IO_flush_file(IO_file * io_file){
             io_file->write_length = io_file->overflow_length;
             io_file->overflow_length = 0;
             io_file->flush_active = false;
+            IO_DEBUG_LAT_LOW();
             return true;
         }
+        IO_DEBUG_LAT_LOW();
     }
     io_file->flush_active = false;
 }
@@ -788,10 +857,8 @@ UINT16 IO_getLeft(void){
     return (UINT16) (IO_left_dt / (40));
 }
 
-void IO_control_exec(void){
-    static UINT32 prev_timestamp = 0;
+void IO_sendData(UINT32 time_us){
     UINT16 data_pack[25] = {0};
-
     ITG3200_readData();
     ADXL345_readData();
     data_pack[0] = ITG3200_getx();
@@ -815,8 +882,18 @@ void IO_control_exec(void){
     data_pack[18] = 0x0000;
     data_pack[19] = ITG3200_getRawTemperature();
     data_pack[20] = RN131_getIncrKey();
-    RN131_SendDataPacket(data_pack, 21);
+    data_pack[21] = (UINT16)(0x0000FFFF & time_us);
+    data_pack[22] = (UINT16)((0xFFFF0000 & time_us) >> 16);
+    RN131_SendDataPacket(data_pack, 23);
+}
 
+void IO_control_exec(void){
+    static UINT32 prev_timestamp = 0;
+
+    UINT32 current_time_us = IO_updateCoreTime_us();
+    
+    IO_sendData(current_time_us);
+    
     int temp_time = ReadCoreTimer();
     float control_dt = (float)((unsigned int)((unsigned int) temp_time - (int) prev_timestamp))/40e6;
     prev_timestamp = temp_time;
@@ -840,7 +917,6 @@ void IO_main_control(float dt){
     float throttle = 0, delta_right = 0, delta_rear, delta_left = 0;
     float yaw_angle_reference = 0, altitude_reference = 0;
     float height_sensor = 0;
-//    bool rn131_timeout = true;      // assume timeout occurs
 
     // If manual mode is activated, override system state to manual
     if (!SPEKTRUM_isAutoMode()){
@@ -1072,14 +1148,7 @@ void IO_main_control(float dt){
     // Supply input to plant
     IO_writePWMmodule(IO_esc, IO_lateral, IO_longitudinal, IO_collective, IO_tailrate);
 
-    // Log data
-//    char buffer[128];
-//    int len = sprintf(&buffer[0], "%8s, %4.0f, %4.0f, %4.2f\r\n", IO_SystemStateString[IO_SystemState], IO_ref_speed, IO_collective, altitude_reference);
-//    RN131_writeBuffer(buffer, len);
     IO_logControl();
-//    IO_SystemIdentification();
-//    RN131_logSync();
-//    IO_logRadioMapping();
 }
 
 //void IO_Control(void){
@@ -1214,9 +1283,9 @@ void IO_getRefInputs(float * throttle, float * del_right, float * del_rear, floa
 
     *yaw_ref = -(float)(SPEKTRUM_getRUDDER()-SPEKTRUM_getRudderNominal());
     if (*yaw_ref < 0)
-        *yaw_ref = (float)360/398*(*yaw_ref);
+        *yaw_ref = (float)2*M_PI/398*(*yaw_ref);
     else
-        *yaw_ref = (float)360/446*(*yaw_ref);
+        *yaw_ref = (float)2*M_PI/446*(*yaw_ref);
 
     // Get roll and pitch reference in degrees
     float lat = -(float)((*del_right)-(*del_left));
@@ -1237,24 +1306,90 @@ void IO_getRefInputs(float * throttle, float * del_right, float * del_rear, floa
 }
 
 void IO_getRotorInputs(float * main_collective, float * lat, float * lon){
+    /*
+     * Servo to plant input mapping
+     * ----------------------------
+     * S = [dSrt dSrr dSlt]'
+     * U = [theta A B]
+     * U = A*S
+     *       1/3   1/3   1/3
+     * A =     1     0    -1
+               1    -2     1
+     */
+
     int del_right = (int)IO_getRight() - SPEKTRUM_getRightNominal();
     int del_rear = -((int)IO_getRear() - SPEKTRUM_getRearNominal());
     int del_left = -((int)IO_getLeft() - SPEKTRUM_getLeftNominal());
     *main_collective = (del_right + del_left + del_rear)/3;
-    *lat = (float)(del_right - del_left)/(2);
-    *lon = (float)((del_right + del_left)/2 - del_rear)/3;
+    *lat = (float)(del_right - del_left);
+    *lon = (float)((del_right + del_left) - 2*del_rear);
+
+    *main_collective = IO_limits(IO_COL_LOWER_LIMIT, IO_COL_UPPER_LIMIT, *main_collective); // should never be more than 500us
+    *lat = IO_limits(IO_LAT_LOWER_LIMIT, IO_LAT_UPPER_LIMIT, *lat); // should never be more than 500us
+    *lon = IO_limits(IO_LON_LOWER_LIMIT, IO_LON_UPPER_LIMIT, *lon); // should never be more than 500us
 }
 
 bool IO_writePWMmodule(float esc, float lateral, float longitudinal, float collective, float tail_rate){
+    /*
+     * Plant to servo input mapping
+     * ----------------------------
+     * S = [dSrt dSrr dSlt]'
+     * U = [theta A B]
+     * U = A*S
+     *       1/3  -1/3  -1/3
+     * A =     1     0     1
+     *         1     2    -1
+     *
+     *            1   1/2   1/6
+     * A^-1 =    -1     0   1/3
+     *           -1   1/2  -1/6
+     *
+     */
     IO_PWM_packet[0] = (UINT8) IO_limits(IO_PWM_SAT_MIN, IO_PWM_SAT_MAX, esc);
-    IO_PWM_packet[1] = PWM_PULSEWIDTH2BYTE((int)(SPEKTRUM_getRightNominal() + lateral + longitudinal + collective));
-    IO_PWM_packet[2] = PWM_PULSEWIDTH2BYTE((int)(SPEKTRUM_getRearNominal() + 2*longitudinal - collective));
+    IO_PWM_packet[1] = PWM_PULSEWIDTH2BYTE((int)(SPEKTRUM_getRightNominal() + lateral/2 + longitudinal/6 + collective));
+    IO_PWM_packet[2] = PWM_PULSEWIDTH2BYTE((int)(SPEKTRUM_getRearNominal() + longitudinal/3 - collective));
     IO_PWM_packet[3] = PWM_PULSEWIDTH2BYTE((int)tail_rate);
     IO_PWM_packet[4] = IO_gyro_gain;
-    IO_PWM_packet[5] = PWM_PULSEWIDTH2BYTE((int)(SPEKTRUM_getLeftNominal() + lateral - longitudinal - collective));
+    IO_PWM_packet[5] = PWM_PULSEWIDTH2BYTE((int)(SPEKTRUM_getLeftNominal() + lateral/2 - longitudinal/6 - collective));
 
     // Check if require to send with config mode auto
     bool auto_mode_on = SPEKTRUM_isAutoMode();
+    // Reset status register
+    if (auto_mode_on)
+        IO_statusReg = IO_AUTO_MODE;
+    else
+        IO_statusReg = 0x00;
+
+    // Make sure sync is complete as well
+    auto_mode_on &= RN131_syncComplete();
+
+    // update sync status
+    if (RN131_syncComplete())
+        IO_statusReg |= IO_RN131_SYNC;
+    else
+        IO_statusReg &= ~IO_RN131_SYNC;
+    
+    // update timeout status
+    if (RN131_getTimeout())
+        IO_statusReg |= IO_RN131_TIMEOUT;
+    else
+        IO_statusReg &= ~IO_RN131_TIMEOUT;
+
+    // update position control status
+    if (position_control)
+        IO_statusReg |= IO_POSITION_CNTL;
+    else
+        IO_statusReg &= ~IO_POSITION_CNTL;
+
+    if (RN131_ekfStable())
+        IO_statusReg |= IO_STABLE_EKF;
+    else
+        IO_statusReg &= ~IO_STABLE_EKF;
+
+    if (SPEKTRUM_getTimeout())
+        IO_statusReg |= IO_SPEKTRUM_TIMEOUT;
+    else
+        IO_statusReg &= ~IO_SPEKTRUM_TIMEOUT;
     // Compute checksum and send via I2C
     // Time from write to PWM change with one shot firmware ~660us
     return PWM_sendPacket(auto_mode_on, IO_PWM_packet, 6);
@@ -1299,78 +1434,68 @@ float IO_limits(float lower, float upper, float input){
     return input;
 }
 
-void IO_logVital(bool ack, float motor_speed, float altitude_ref,
-        float altitude_sense){
-    int sdlen = sprintf(&IO_sd_buffer[0],"%d,%.2f,%.3f,%.3f,%.3f,%d,%.3f,%.3f,%d,%d,%d,%lu\r\n",
-                        ack,
-                        motor_speed,
-                        altitude_ref,
-                        altitude_sense,
-                        (float)RN131_get_tz()/1000,
-                        IO_getLocalControl(),
-                        IO_yaw_ref,
-                        IMU_getYaw(),
-                        IO_getBatteryVoltage(),
-                        SPEKTRUM_isAutoMode(),
-                        SPEKTRUM_getTimeout(),
-                        IO_get_time_ms());
-
-    IO_logMessage(&IO_sd_buffer[0], sdlen);
-}
-
-void IO_logSensorData(void){
-    int sdlen = sprintf(&IO_sd_buffer[0],"%d,%d,%d,%d,%d,%d,%lu\r\n",
+void IO_SystemIdentification(void){
+    float tx = 0; float ty = 0; float tz = 0;
+    RN131_extrapolatePosition(&tx, &ty, &tz);
+    int sdlen = sprintf(&IO_sd_buffer[0],"%u,%u,%u,%u,%u,%u,%.0f,%.2f,%.2f,%.2f,%d,%d,%d,%.0f,%.0f,%.0f,%d,%d,%d,%d,%u\r\n",
+                        IO_PWM_packet[0],IO_PWM_packet[1],IO_PWM_packet[2],IO_PWM_packet[3],IO_PWM_packet[4],IO_PWM_packet[5],
+                        IO_getFilteredRotorSpeed(),
+                        *IMU_getRoll()*180/M_PI, *IMU_getPitch()*180/M_PI, *IMU_getYaw()*180/M_PI,
                         ITG3200_getx(), ITG3200_gety(), ITG3200_getz(),
-                        ADXL345_getx(), ADXL345_gety(), ADXL345_getz(),
-                        IO_get_time_ms());
-
+                        tx*1000, ty*1000, tz*1000, //RN131_getTx(), RN131_getTy(),  RN131_getTz(),
+                        RN131_getVx(), RN131_getVy(),  RN131_getVz(),
+                        RN131_getFilteredOffset(),
+                        IO_updateCoreTime_us());
     IO_logMessage(&IO_sd_buffer[0], sdlen);
 }
 
 void IO_logControl(void){
-    int sdlen = sprintf(&IO_sd_buffer[0],"%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.0f,%.0f,%.0f,%d,%d,%d,%.2f,%.2f,%.2f,%.2f,%.2f,%.0f,%.0f,%u,%u,%u,%u,%lu\r\n",
-                        IO_roll_ref*180/M_PI, IO_pitch_ref*180/M_PI, IO_yaw_ref,
-                        IMU_getRoll(), IMU_getPitch(), IMU_getYaw(),
-                        IO_x_ref*1000, IO_y_ref*1000, IO_z_ref*1000,
-                        RN131_getTx(), RN131_getTy(), (short int)(IO_getAltitude()*1000),
-                        IO_lateral, IO_longitudinal, IO_collective, IO_esc, IO_tailrate,
-                        IO_ref_speed,
-                        IO_getFilteredRotorSpeed(),
-                        IO_getBatteryVoltage(),
-                        stable_ekf,
-                        position_control,
-                        rn131_timeout,
-                        IO_updateCoreTime_us());
-    IO_logMessage(&IO_sd_buffer[0], sdlen);
-}
+    float tx = 0; float ty = 0; float tz = 0;
+    RN131_extrapolatePosition(&tx, &ty, &tz);
 
-void IO_SystemIdentification(void){
-    int sdlen = sprintf(&IO_sd_buffer[0],"%u,%u,%u,%u,%u,%u,%.0f,%.2f,%.2f,%.2f,%d,%d,%d,%d,%d,%d,%d,%d,%d,%lu\r\n",
-                        IO_PWM_packet[0],IO_PWM_packet[1],IO_PWM_packet[2],IO_PWM_packet[3],IO_PWM_packet[4],IO_PWM_packet[5],
-                        IO_getFilteredRotorSpeed(),
-                        IMU_getRoll(), IMU_getPitch(), IMU_getYaw(),
-                        ITG3200_getx(), ITG3200_gety(), ITG3200_getz(),
-                        RN131_getTx(), RN131_getTy(),  RN131_getTz(),
-                        RN131_getVx(), RN131_getVy(),  RN131_getVz(),
-                        IO_updateCoreTime_us());
-    IO_logMessage(&IO_sd_buffer[0], sdlen);
-}
+    int i = 0;
+    // log attitude reference (rads)
+    memcpy(&IO_sd_buffer[i], (float *)&IO_roll_ref, 4); i += 4;
+    memcpy(&IO_sd_buffer[i], (float *)&IO_pitch_ref, 4); i += 4;
+    memcpy(&IO_sd_buffer[i], (float *)&IO_yaw_ref, 4); i += 4;
+    // log attitude (measurement) (rads)
+    memcpy(&IO_sd_buffer[i], (float *)IMU_getRoll(), 4); i += 4;
+    memcpy(&IO_sd_buffer[i], (float *)IMU_getPitch(), 4); i += 4;
+    memcpy(&IO_sd_buffer[i], (float *)IMU_getYaw(), 4); i += 4;
+    // log position reference (m)
+    memcpy(&IO_sd_buffer[i], (float *)&IO_x_ref, 4); i += 4;
+    memcpy(&IO_sd_buffer[i], (float *)&IO_y_ref, 4); i += 4;
+    memcpy(&IO_sd_buffer[i], (float *)&IO_z_ref, 4); i += 4;
+    // log position measurement (m)
+    memcpy(&IO_sd_buffer[i], (float *)&tx, 4); i += 4;
+    memcpy(&IO_sd_buffer[i], (float *)&ty, 4); i += 4;
+    memcpy(&IO_sd_buffer[i], (float *)&tz, 4); i += 4;
+    // log velocity measurement (mm/s)
+    memcpy(&IO_sd_buffer[i], (short int *) RN131_getVx(), 2); i += 2;
+    memcpy(&IO_sd_buffer[i], (short int *) RN131_getVy(), 2); i += 2;
+    memcpy(&IO_sd_buffer[i], (short int *) RN131_getVz(), 2); i += 2;
+    // log control signals
+    memcpy(&IO_sd_buffer[i], (float *)&IO_lateral, 4); i += 4;
+    memcpy(&IO_sd_buffer[i], (float *)&IO_longitudinal, 4); i += 4;
+    memcpy(&IO_sd_buffer[i], (float *)&IO_collective, 4); i += 4;
+    memcpy(&IO_sd_buffer[i], (float *)&IO_esc, 4); i += 4;
+    memcpy(&IO_sd_buffer[i], (float *)&IO_tailrate, 4); i += 4;
+    // log PWM packet
+    memcpy(&IO_sd_buffer[i], (UINT8 *)&IO_PWM_packet, 6); i += 6;
+    // log ref and actual speed
+    memcpy(&IO_sd_buffer[i], (float *)&IO_ref_speed, 4); i += 4;
+    memcpy(&IO_sd_buffer[i], (float *)&IO_filteredRotorSpeed, 4); i += 4;
+    // log battery voltage
+    memcpy(&IO_sd_buffer[i], (UINT16 *)&IO_batteryVoltage, 2); i += 2;
+    // offset between pc and helicopter
+    memcpy(&IO_sd_buffer[i], (INT32 *) RN131_getFilteredOffset(), 4); i += 4;
+    // status register
+    IO_sd_buffer[i] = IO_statusReg; i += 1;
+    // log time
+    UINT32 now = IO_updateCoreTime_us();
+    memcpy(&IO_sd_buffer[i], (UINT32 *)&now, 4); i += 4;
 
-void IO_dmesgLog(void){
-    int sdlen = sprintf(&IO_sd_buffer[0],"%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.0f,%.0f,%.0f,%d,%d,%d,%.3f,%.3f,%.3f,%lu\r\n",
-                        IO_roll_ref*180/M_PI, IO_pitch_ref*180/M_PI, IO_yaw_ref,
-                        IMU_getRoll(), IMU_getPitch(), IMU_getYaw(),
-                        IO_x_ref*1000, IO_y_ref*1000, IO_z_ref*1000,
-                        RN131_getTx(), RN131_getTy(), RN131_getTz(),
-                        IO_lateral, IO_longitudinal, IO_collective,
-                        IO_get_time_ms());
-    IO_dmesgMessage(&IO_sd_buffer[0], sdlen);
-}
-
-void IO_generalLog(float a1, float a2, float a3){
-    int sdlen = sprintf(&IO_sd_buffer[0],"%.3f,%.3f,%.3f,%lu\r\n",
-                a1, a2, a3,IO_get_time_ms());
-    IO_logMessage(&IO_sd_buffer[0], sdlen);
+    IO_logMessage(&IO_sd_buffer[0], i);
 }
 
 void IO_logQuaternion(void){
@@ -1618,7 +1743,7 @@ float IO_LPF_1st(float input[3], float output[3], float dt, float wn){
 float IO_roll_control(float roll_reference, float dt, bool initialise){
     static float notch_input[3] = {0}, notch_output[3] = {0};
 
-    float roll_error = -roll_reference + (IMU_getRoll())*M_PI/180;
+    float roll_error = -roll_reference + (*IMU_getRoll());
 
     IO_shiftData(&notch_input[0]);
     notch_input[0] = roll_error;
@@ -1636,7 +1761,7 @@ float IO_roll_control(float roll_reference, float dt, bool initialise){
 float IO_pitch_control(float pitch_reference, float dt, bool initialise){
     static float notch_input[3] = {0}, notch_output[3] = {0};
 
-    float pitch_error = pitch_reference - (IMU_getPitch())*M_PI/180;
+    float pitch_error = pitch_reference - (*IMU_getPitch());
 
     IO_shiftData(&notch_input[0]);
     notch_input[0] = pitch_error;
@@ -1674,7 +1799,7 @@ float IO_yaw_control(float dt, float yaw_ref){
 
     IO_shiftData(&yaw_error[0]);
     
-    yaw_error[0] = (yaw_ref - IMU_getYaw())*M_PI/180;
+    yaw_error[0] = yaw_ref - (*IMU_getYaw());
     IO_shiftData(&yaw_input[0]);
 
     // calculate derivative control signal
@@ -1828,12 +1953,12 @@ void __ISR(_ADC_VECTOR, IO_ADC_IPL) ADCInterrupt( void)
     PRIORITY: 6
     SUBPRIORITY: 3
  *      - excute control loop
+ *  takes worst case 1.5ms to execute
 */
 void __ISR(_TIMER_3_VECTOR, IO_T3_IPL) _Timer3Handler(void){
     IO_control_exec();
     // clear the interrupt flag
     mT3ClearIntFlag();
-
 }
 
 /*
@@ -1843,10 +1968,8 @@ void __ISR(_TIMER_3_VECTOR, IO_T3_IPL) _Timer3Handler(void){
  *      - used for timing reference
  *      - indicate system running
 */
-void __ISR(_CORE_TIMER_VECTOR, IO_CT_IPL) CoreTimerHandler(void)
-{
+void __ISR(_CORE_TIMER_VECTOR, IO_CT_IPL) CoreTimerHandler(void){
     static UINT16 heartbeat_count = 0;
-
     // Clear the interrupt flag
     mCTClearIntFlag();
 
@@ -1972,7 +2095,6 @@ void __ISR(_CHANGE_NOTICE_VECTOR, IO_CN_IPL) changeNotificationHandler(void){
     static bool pin_prev_state[10] = {low};
 
     int temp_time;
-
     // clear the mismatch condition
     unsigned int port_val_D = mPORTDRead();
     unsigned int port_val_B = mPORTBRead();

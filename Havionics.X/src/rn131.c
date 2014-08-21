@@ -15,7 +15,9 @@ INT32 RN131_offset_us = 0;
 UINT32 RN131_delay_us = 0;          // Round trip delay excluding processing time
 // Initial offset and delay estimate
 INT32 RN131_offset_us_0 = 0;
-UINT32 RN131_delay_us_0 = 0;      
+UINT32 RN131_delay_us_0 = 0;
+volatile bool RN131_sync_complete = false;
+INT32 RN131_filteredOffset = 0;
 
 void RN131_setupUART(void);
 void RN131_setupDMA_TX(void);
@@ -287,11 +289,15 @@ void RN131_decodeData(void){
     }
 }
 
+bool RN131_syncComplete(void){
+    return RN131_sync_complete;
+}
+
 void RN131_decodeBinary(const char * rx_data){
     static INT64 offset_sum = 0;
     static UINT64 delay_sum = 0;
-    static char init_count = 0;
-    static bool initialisation = true;
+    static int init_count = 0;
+    static int sync_count = 0;
 
     UINT16 temp_seq = 0;
     // Check sequence number [because udp does not ensure order under load]
@@ -331,21 +337,54 @@ void RN131_decodeBinary(const char * rx_data){
         RN131_delay_us = RN131_states.received_uavtime - RN131_data.send_uavtime - RN131_PROCESS_LATENCY;
         RN131_offset_us = RN131_states.received_key_pctime - RN131_data.send_uavtime - (RN131_delay_us >> 1);
 
-        if (initialisation){
-            if (init_count++ < 64){
+        RN131_OffsetFilter(RN131_offset_us);
+        
+        if (!RN131_sync_complete){
+            // take 32 samples
+            if (init_count++ < 32){
                 delay_sum += RN131_delay_us;
                 offset_sum += RN131_offset_us;
             }
             else{
-                RN131_offset_us_0 = (INT32)(offset_sum >> 6);
-                RN131_delay_us_0 = (UINT32)(delay_sum >> 6);
-                // This is done once only
+                RN131_offset_us_0 = (INT32)(offset_sum >> 5);
+                RN131_delay_us_0 = (UINT32)(delay_sum >> 5);
+                // Adjust main clock by offset calculated
                 IO_adjIO_time_us(RN131_offset_us_0);
-                initialisation = false;
+
+                delay_sum = 0;
+                offset_sum = 0;
+                // 3 pass system synchronise
+                if (sync_count++ > 3)
+                    RN131_sync_complete = true;
             }
         }
     }
 }
+
+// Propagate last received position to current time
+// Return: true if no timeout
+bool RN131_extrapolatePosition(float * tx, float * ty, float * tz){
+    /*
+        |--------|-------|-----------------|---------|
+     IMU read    |   pc calc done   Heli rx position |
+             pc rx data<-----------dt--------------> |
+
+     */
+
+    // find the time difference between the current time and the time data was
+    // received on the pc (pc computation time is ~ 300us)
+    float dt = (IO_updateCoreTime_us() - RN131_states.received_key_pctime)/1e6;
+    *tx = (float)RN131_states.translation_x/1000 + dt*(float)RN131_states.velocity_x/1000;
+    *ty = (float)RN131_states.translation_y/1000 + dt*(float)RN131_states.velocity_y/1000;
+    *tz = (float)RN131_states.translation_z/1000 + dt*(float)RN131_states.velocity_z/1000;
+
+    // if not stable or there is a timeout return false
+    if (!RN131_ekfStable() || RN131_getTimeout())
+        return false;
+    else
+        return true;
+}
+
 
 bool RN131_ekfStable(void){
     return (RN131_states.config == 0x0B) ? true : false;
@@ -365,6 +404,37 @@ UINT32 RN131_getDelay_us_0(void){
 
 INT32 RN131_getOffset_us_0(void){
     return RN131_offset_us_0;
+}
+
+INT32 RN131_OffsetFilter(INT32 offset){
+    static float data_buffer[RN131_OFFSET_FILTER_N + 1] = {0};
+    static int current_point = RN131_OFFSET_FILTER_N;
+    static float prev_output = 0;
+    static bool first_enter = true;
+
+    if (first_enter){
+        int i;
+        // initialise array variable
+        for (i = 0; i < (RN131_OFFSET_FILTER_N + 1); i++){
+            data_buffer[i] = (float)offset;
+        }
+        prev_output = (float)offset;
+        first_enter = false;
+    }
+
+    // store current data
+    data_buffer[current_point] = (float)offset;
+
+    // next point to store data
+    current_point = (current_point == RN131_OFFSET_FILTER_N) ? 0 : current_point + 1;
+
+    prev_output = prev_output + ((float)offset - data_buffer[current_point])/RN131_OFFSET_FILTER_N;
+    RN131_filteredOffset = (INT32)prev_output;
+    return RN131_filteredOffset;
+}
+
+INT32 * RN131_getFilteredOffset(void){
+    return &RN131_filteredOffset;
 }
 
 bool RN131_timeoutInc(void){
@@ -511,16 +581,16 @@ short int RN131_getTz(void){
     return RN131_states.translation_z;
 }
 
-short int RN131_getVx(void){
-    return RN131_states.velocity_x;
+short int * RN131_getVx(void){
+    return &RN131_states.velocity_x;
 }
 
-short int RN131_getVy(void){
-    return RN131_states.velocity_y;
+short int * RN131_getVy(void){
+    return &RN131_states.velocity_y;
 }
 
-short int RN131_getVz(void){
-    return RN131_states.velocity_z;
+short int * RN131_getVz(void){
+    return &RN131_states.velocity_z;
 }
 
 float RN131_getQuaternion_q0(void){

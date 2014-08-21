@@ -150,8 +150,14 @@ typedef struct {
 
 // File System parameters
 #define IO_FS_DMESG "dmesg.txt"
-#define IO_FS_LOG "log.txt"
+#define IO_FS_LOG "log.bin"
 
+#define IO_AUTO_MODE            (1 << 0)
+#define IO_RN131_TIMEOUT        (1 << 1)
+#define IO_RN131_SYNC           (1 << 2)
+#define IO_POSITION_CNTL        (1 << 3)
+#define IO_STABLE_EKF           (1 << 4)
+#define IO_SPEKTRUM_TIMEOUT     (1 << 5)
 typedef enum IO_PID_TYPE_t{
     IO_PID,
     IO_PD
@@ -166,6 +172,7 @@ IO_EXTERN UINT16 IO_getBatteryVoltage(void);
 IO_EXTERN void IO_delayms(unsigned int num_ms_delay);
 IO_EXTERN void IO_initialize_FS(void);
 IO_EXTERN bool IO_initializeFile(IO_file * IO_file_ds, const char * IO_file_name);
+IO_EXTERN void IO_initialiseLogFiles(void);
 IO_EXTERN void IO_terminate_FS(void);
 IO_EXTERN bool IO_flush_file(IO_file * io_file);
 IO_EXTERN bool IO_flush_FS(void);
@@ -185,20 +192,17 @@ IO_EXTERN void IO_adjIO_time_us(INT32 offset);
 IO_EXTERN bool IO_getLocalControl(void);
 IO_EXTERN void IO_setLocalControl(bool val);
 IO_EXTERN void IO_changeNotificationSetup(void);
-IO_EXTERN void IO_logSensorData(void);
-IO_EXTERN void IO_generalLog(float a1, float a2, float a3);
 IO_EXTERN void IO_logRadio(void);
-IO_EXTERN void IO_logControl(void);
 IO_EXTERN void IO_logQuaternion(void);
 IO_EXTERN void IO_SystemIdentification(void);
+IO_EXTERN void IO_logControl(void);
 IO_EXTERN bool IO_getRadioError(void);
 IO_EXTERN void IO_logRadioMapping(void);
 IO_EXTERN bool IO_getLEDState(void);
 IO_EXTERN volatile UINT32 IO_getLEDON_time(void);
-//IO_EXTERN void IO_Control(void);
+IO_EXTERN void IO_sendData(UINT32 time_us);
 IO_EXTERN void IO_Control_Int_Enable(void);
 IO_EXTERN void IO_control_exec(void);
-IO_EXTERN void IO_dmesgLog(void);
 IO_EXTERN UINT32 IO_getDataTime(void);
 IO_EXTERN bool IO_writePWMmodule(float esc, float lateral, float longitudinal, float collective, float tail_rate);
 IO_EXTERN float IO_ESC_controller(float ref_speed, float dt);
@@ -253,9 +257,6 @@ IO_EXTERN float IO_filter_yaw_prefilter(float yaw_in, float dt, float wn);
 
 IO_EXTERN bool IO_getStateProject(void);
 IO_EXTERN void IO_setStateProject(bool val);
-
-IO_EXTERN void IO_logVital(bool ack, float motor_speed, float altitude_ref,
-        float altitude_sense);
 
 volatile float IO_longitudinal;
 volatile float IO_lateral;
