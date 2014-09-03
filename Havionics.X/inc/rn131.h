@@ -23,7 +23,7 @@
 #define RN131_BUFFER_SIZE       256
 #define RN131_DATA_PERIOD       (20)    // millisecond
 #define RN131_DATA_PERIOD_DELTA (50000)
-#define RN131_RX_TIMEOUT        (250)   // called every 1ms ~ to 0.25s
+#define RN131_RX_TIMEOUT        (200)   // called every 1ms ~ to 0.25s
 #define RN131_PROCESS_LATENCY   (210)   //us
 #define RN131_RX_DATA_SIZE      (39)
 #define RN131_PACKET_SIZEOF     (36)

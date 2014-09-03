@@ -158,6 +158,10 @@ typedef struct {
 #define IO_POSITION_CNTL        (1 << 3)
 #define IO_STABLE_EKF           (1 << 4)
 #define IO_SPEKTRUM_TIMEOUT     (1 << 5)
+
+#define IO_SERVO_RIGHT_SIGN     (1)
+#define IO_SERVO_REAR_SIGN     (-1)
+#define IO_SERVO_LEFT_SIGN     (-1)
 typedef enum IO_PID_TYPE_t{
     IO_PID,
     IO_PD
@@ -204,7 +208,7 @@ IO_EXTERN void IO_sendData(UINT32 time_us);
 IO_EXTERN void IO_Control_Int_Enable(void);
 IO_EXTERN void IO_control_exec(void);
 IO_EXTERN UINT32 IO_getDataTime(void);
-IO_EXTERN bool IO_writePWMmodule(float esc, float lateral, float longitudinal, float collective, float tail_rate);
+IO_EXTERN bool IO_writePWMmodule(float esc, float lateral, float longitudinal, float collective, float delta_rudder);
 IO_EXTERN float IO_ESC_controller(float ref_speed, float dt);
 IO_EXTERN float IO_getAltitudeReference(float throttle);
 IO_EXTERN void IO_main_control(float dt);

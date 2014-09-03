@@ -12,7 +12,7 @@ void ADXL345_setup(void){
     
     // setup ADXL345
     // set output rate to 50Hz, normal power
-    res =  IMU_tryConfig(ADXL345_RA_BW_RATE, ADXL345_RATE_50, ADXL345_ADDRESS);
+    res =  IMU_tryConfig(ADXL345_RA_BW_RATE, ADXL345_RATE_100, ADXL345_ADDRESS);
     // set power control - put in measurement mode
     res =  IMU_tryConfig(ADXL345_RA_POWER_CTL, (1 << ADXL345_PCTL_MEASURE_BIT), ADXL345_ADDRESS);
     // enable data ready interrupt
@@ -20,7 +20,7 @@ void ADXL345_setup(void){
     // map data ready interrupt to INT1
     res =  IMU_tryConfig(ADXL345_RA_INT_MAP, (~(1 << ADXL345_INT_DATA_READY_BIT)) & 0xFF, ADXL345_ADDRESS);
     // data format
-    uchar data = (1 << ADXL345_FORMAT_FULL_RES_BIT) | (ADXL345_RANGE_4G);
+    uchar data = (1 << ADXL345_FORMAT_FULL_RES_BIT) | (ADXL345_RANGE_16G);
     res =  IMU_tryConfig(ADXL345_RA_DATA_FORMAT, data, ADXL345_ADDRESS);
     // set FIFO control - enable stream mode, set 32 data points to interrupt
     data = (ADXL345_FIFO_MODE_BYPASS << (ADXL345_FIFO_MODE_BIT + 1 - ADXL345_FIFO_MODE_LENGTH));
