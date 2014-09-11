@@ -79,7 +79,7 @@ int main(int argc, char** argv) {
     IO_changeNotificationSetup();
     IO_getRadioNominal();
     IO_LED_init(2);
-//     initialize SD file system
+    // Initialize SD file system
     IO_initialiseLogFiles();
     IO_LED_init(3);
 

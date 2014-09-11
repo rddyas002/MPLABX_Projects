@@ -12,7 +12,7 @@ void ADXL345_setup(void){
     
     // setup ADXL345
     // set output rate to 50Hz, normal power
-    res =  IMU_tryConfig(ADXL345_RA_BW_RATE, ADXL345_RATE_100, ADXL345_ADDRESS);
+    res =  IMU_tryConfig(ADXL345_RA_BW_RATE, ADXL345_RATE_50, ADXL345_ADDRESS);
     // set power control - put in measurement mode
     res =  IMU_tryConfig(ADXL345_RA_POWER_CTL, (1 << ADXL345_PCTL_MEASURE_BIT), ADXL345_ADDRESS);
     // enable data ready interrupt

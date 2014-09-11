@@ -10221,8 +10221,7 @@ volatile BOOL RECEIVING_FROM_MASTER = 0;
 void interrupt InterruptHandlerHigh (void)
 {
 
-if (PIR1bits.SSPIF && PIE1bits.SSP1IE)
-{
+if (PIR1bits.SSPIF && PIE1bits.SSP1IE){
 unsigned char buffer;
 
 PIR1bits.SSPIF = 0;
@@ -10234,8 +10233,7 @@ if ((!SSP1STATbits.R_NOT_W) && (!SSP1STATbits.D_NOT_A))
 I2C_FSM = ADDRESS_MATCH_WRITE;
 buffer = SSP1BUF;
 
-if (buffer == (0x4A << 1))
-{
+if (buffer == (0x4A << 1)){
 RECEIVING_FROM_MASTER = 1;
 }
 }
@@ -10244,8 +10242,8 @@ else if ((SSP1STATbits.R_NOT_W) && (!SSP1STATbits.D_NOT_A) && RECEIVING_FROM_MAS
 {
 
 buffer = SSP1BUF;
-if ((checksum == dataBuffer[7]))
-{
+
+if ((checksum == dataBuffer[7])){
 kickAutoCount = 0;
 data_updated = 1;
 SSP1BUF = 'A';
@@ -10268,16 +10266,32 @@ PWM_SET = 0b00111111;
 if ((dataBuffer[0] && 0x01)){
 {LATBbits.LATB2 = 0;};
 }
-else
-{
+else{
 {LATBbits.LATB2 = 1;};
 }
 }
-else
-{
+else{
+
 SSP1BUF = 'N';
-SSP1CON1bits.CKP = 1;
+data_updated = 0;
+
+
+SETUP_releaseI2C();
+
+SETUP_swI2C_intOff();
+
+SETUP_T0_activate(138);
+ESC_n = AIL_n = RUDD_n = ELEV_n = GEAR_n = AUX_n = 1;
+
+PWM_SET = 0b00111111;
+if ((dataBuffer[0] && 0x01)){
+{LATBbits.LATB2 = 0;};
 }
+else{
+{LATBbits.LATB2 = 1;};
+}
+}
+
 RECEIVING_FROM_MASTER = 0;
 I2C_FSM = NOWHERE;
 return;

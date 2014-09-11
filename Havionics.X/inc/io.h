@@ -23,7 +23,7 @@ typedef enum{
             SYS_TAKEOFF,
             SYS_FLY,
             SYS_LAND,
-            SYS_ERROR
+            SYS_ERROR,
 } IO_SYSTEM_STATE;
 
 typedef enum{
@@ -99,7 +99,7 @@ typedef struct {
 #define IO_STATE_PROJECT            (20)
 #define IO_CONTROL_PERIOD_MATCH     (3125)
 
-#define IO_SPEED_TIMEOUT            (100)
+#define IO_SPEED_TIMEOUT            (2000)
 
 #define IO_RPM_MAX                  (3500)
 #define IO_RPM_MIN                  (400)
@@ -158,6 +158,8 @@ typedef struct {
 #define IO_POSITION_CNTL        (1 << 3)
 #define IO_STABLE_EKF           (1 << 4)
 #define IO_SPEKTRUM_TIMEOUT     (1 << 5)
+#define IO_PWM_ACK              (1 << 6)
+#define IO_SPEED_SENSOR_TIMEOUT (1 << 7)
 
 #define IO_SERVO_RIGHT_SIGN     (1)
 #define IO_SERVO_REAR_SIGN     (-1)
@@ -172,6 +174,7 @@ IO_EXTERN void IO_setupPWM_default(void);
 IO_EXTERN UINT16 IO_PWM_dc(float dc);
 IO_EXTERN IO_SYSTEM_STATE IO_getSystemState(void);
 IO_EXTERN void IO_setSystemState(IO_SYSTEM_STATE state);
+IO_EXTERN bool IO_getSpeedTimeout(void);
 IO_EXTERN UINT16 IO_getBatteryVoltage(void);
 IO_EXTERN void IO_delayms(unsigned int num_ms_delay);
 IO_EXTERN void IO_initialize_FS(void);
@@ -241,7 +244,7 @@ IO_EXTERN float IO_PI_with_limits(const float Kp, const float omega_Ti, const fl
     float filter_input[3], float filter_output[3], const float lower_limit, const float upper_limit);
 IO_EXTERN float IO_lead_lag(float omega_lead, float omega_lag, float Ts, float filter_input[3], float filter_output[3]);
 IO_EXTERN float IO_complex_lead_lag(float wn_z, float damp_z, float wn_p, float damp_p, float Ts, float input[3], float output[3]);
-IO_EXTERN float IO_heave_control(float heave_reference, float height_sensor, float lower_ctrl_limit, float upper_ctrl_limit, float dt);
+IO_EXTERN float IO_heave_control(float heave_reference, float height_sensor, float lower_ctrl_limit, float upper_ctrl_limit, float dt, bool initialise);
 IO_EXTERN float IO_yaw_control(float dt, float yaw_ref);
 IO_EXTERN float IO_LPF_1st(float input[3], float output[3], float dt, float wn);
 
@@ -253,11 +256,14 @@ IO_EXTERN void IO_PID_with_limits(float Kp, float omega_lead, float omega_Ti, fl
 IO_EXTERN void IO_PID_rateAux(IO_PID_TYPE pidtype, float Kp, float omega_Td, float omega_Ti, float alpha, float Ts,float u[3], float e[3]);
 IO_EXTERN float IO_roll_control(float roll_reference, float dt, bool initialise);
 IO_EXTERN float IO_pitch_control(float pitch_reference, float dt, bool initialise);
-IO_EXTERN void IO_position_control(float x_ref, float y_ref, float * roll_cmd, float * pitch_cmd, float dt, bool initialise);
+IO_EXTERN void IO_position_control(float x_ref, float y_ref, float z_ref, volatile float * roll_cmd, volatile float * pitch_cmd, float dt, bool initialise);
 IO_EXTERN void IO_shiftData(float data[3]);
 IO_EXTERN float IO_filter_speed(float speed_in, float dt, float wn);
 IO_EXTERN float IO_filter_altitude_prefilter(float alt_in, float dt, float wn);
 IO_EXTERN float IO_filter_yaw_prefilter(float yaw_in, float dt, float wn);
+IO_EXTERN void IO_filter_translationref_prefilter(volatile float * x_ref, volatile float * y_ref, float dt, float wn);
+IO_EXTERN float IO_ESC_feedforward(float collective);
+IO_EXTERN void IO_HeaveYaw_decoupler(float collective_input, float yawrate_input);
 
 IO_EXTERN bool IO_getStateProject(void);
 IO_EXTERN void IO_setStateProject(bool val);

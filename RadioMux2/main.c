@@ -95,8 +95,7 @@ volatile BOOL RECEIVING_FROM_MASTER = false;
 void interrupt InterruptHandlerHigh (void)
 {
     // If interrupt due to I2C
-    if (PIR1bits.SSPIF && PIE1bits.SSP1IE)
-    {
+    if (PIR1bits.SSPIF && PIE1bits.SSP1IE){
         unsigned char buffer;
 	// Clear interrupt flag
 	PIR1bits.SSPIF = 0;
@@ -108,8 +107,7 @@ void interrupt InterruptHandlerHigh (void)
             I2C_FSM = ADDRESS_MATCH_WRITE;
             buffer = SSP1BUF;
             // If a write command to the slave
-            if (buffer == (DEVICE_ADDRESS << 1))
-            {
+            if (buffer == (DEVICE_ADDRESS << 1)){
             	RECEIVING_FROM_MASTER = true;
             }
 	}
@@ -118,8 +116,8 @@ void interrupt InterruptHandlerHigh (void)
 	{
             // Clear buffer
             buffer = SSP1BUF;
-            if ((checksum == dataBuffer[7]))
-            {
+            // if checksum correct then update PWM buffer and switch to PWM mode
+            if ((checksum == dataBuffer[7])){
             	kickAutoCount = 0;
             	data_updated = true;
 		SSP1BUF = 'A';
@@ -137,21 +135,37 @@ void interrupt InterruptHandlerHigh (void)
                 // switch on timer interrupt & set output pins high
                 SETUP_T0_activate(SETUP_TIMER_REG);
                 ESC_n = AIL_n = RUDD_n = ELEV_n = GEAR_n = AUX_n = 1;
-                // Reset variable that keeps indicates when all one shots are complete
+                // Reset variable that indicates when all one shots are complete
                 PWM_SET = 0b00111111;
                 if ((dataBuffer[0] && 0x01)){
                     SETUP_RADIO_OFF();
                 }
-                else
-                {
+                else{
                     SETUP_RADIO_ON();
                 }
             }
-            else
-            {
+            else{
+                // if checksum incorrect then use last PWM info and switch to PWM mode
                 SSP1BUF = 'N';
-                SSP1CON1bits.CKP = 1;
+            	data_updated = false;
+                // Don't kick watchdog because this mode must not last long
+                // checksum incorrect...use last data
+                SETUP_releaseI2C();     // Release clock
+                // switch off i2c interrupt
+                SETUP_swI2C_intOff();
+                // switch on timer interrupt & set output pins high
+                SETUP_T0_activate(SETUP_TIMER_REG);
+                ESC_n = AIL_n = RUDD_n = ELEV_n = GEAR_n = AUX_n = 1;
+                // Reset variable that indicates when all one shots are complete
+                PWM_SET = 0b00111111;
+                if ((dataBuffer[0] && 0x01)){
+                    SETUP_RADIO_OFF();
+                }
+                else{
+                    SETUP_RADIO_ON();
+                }
             }
+
             RECEIVING_FROM_MASTER = 0;
             I2C_FSM = NOWHERE;
             return;

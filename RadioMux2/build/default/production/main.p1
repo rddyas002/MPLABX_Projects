@@ -8476,475 +8476,506 @@ Version 3.2 HI-TECH Software Intermediate Code
 [; ;main.c: 96: {
 [e :U _InterruptHandlerHigh ]
 [f ]
-[; ;main.c: 98: if (PIR1bits.SSPIF && PIE1bits.SSP1IE)
+[; ;main.c: 98: if (PIR1bits.SSPIF && PIE1bits.SSP1IE){
 "98
 [e $ ! && != -> . . _PIR1bits 1 1 `i -> -> -> 0 `i `Vuc `i != -> . . _PIE1bits 0 3 `i -> -> -> 0 `i `Vuc `i 1160  ]
-[; ;main.c: 99: {
+{
 "99
-{
-"100
 [v _buffer `uc ~T0 @X0 1 a ]
-[; ;main.c: 100: unsigned char buffer;
-[; ;main.c: 102: PIR1bits.SSPIF = 0;
-"102
+[; ;main.c: 99: unsigned char buffer;
+[; ;main.c: 101: PIR1bits.SSPIF = 0;
+"101
 [e = . . _PIR1bits 1 1 -> -> 0 `i `uc ]
-[; ;main.c: 105: if ((!SSP1STATbits.R_NOT_W) && (!SSP1STATbits.D_NOT_A))
-"105
+[; ;main.c: 104: if ((!SSP1STATbits.R_NOT_W) && (!SSP1STATbits.D_NOT_A))
+"104
 [e $ ! && ! != -> . . _SSP1STATbits 0 1 `i -> -> -> 0 `i `Vuc `i ! != -> . . _SSP1STATbits 1 1 `i -> -> -> 0 `i `Vuc `i 1161  ]
-[; ;main.c: 106: {
-"106
+[; ;main.c: 105: {
+"105
 {
-[; ;main.c: 108: I2C_FSM = ADDRESS_MATCH_WRITE;
-"108
+[; ;main.c: 107: I2C_FSM = ADDRESS_MATCH_WRITE;
+"107
 [e = _I2C_FSM -> . `E8654 0 `VE8654 ]
-[; ;main.c: 109: buffer = SSP1BUF;
-"109
+[; ;main.c: 108: buffer = SSP1BUF;
+"108
 [e = _buffer _SSP1BUF ]
-[; ;main.c: 111: if (buffer == (0x4A << 1))
-"111
+[; ;main.c: 110: if (buffer == (0x4A << 1)){
+"110
 [e $ ! == -> _buffer `i << -> 74 `i -> 1 `i 1162  ]
-[; ;main.c: 112: {
-"112
 {
-[; ;main.c: 113: RECEIVING_FROM_MASTER = 1;
-"113
+[; ;main.c: 111: RECEIVING_FROM_MASTER = 1;
+"111
 [e = _RECEIVING_FROM_MASTER -> -> 1 `i `VE7735 ]
-"114
+"112
 }
 [e :U 1162 ]
-"115
+"113
 }
-[; ;main.c: 114: }
-[; ;main.c: 115: }
+[; ;main.c: 112: }
+[; ;main.c: 113: }
 [e $U 1163  ]
-"117
+"115
 [e :U 1161 ]
-[; ;main.c: 117: else if ((SSP1STATbits.R_NOT_W) && (!SSP1STATbits.D_NOT_A) && RECEIVING_FROM_MASTER)
+[; ;main.c: 115: else if ((SSP1STATbits.R_NOT_W) && (!SSP1STATbits.D_NOT_A) && RECEIVING_FROM_MASTER)
 [e $ ! && && != -> . . _SSP1STATbits 0 1 `i -> -> -> 0 `i `Vuc `i ! != -> . . _SSP1STATbits 1 1 `i -> -> -> 0 `i `Vuc `i != -> _RECEIVING_FROM_MASTER `i -> -> -> 0 `i `VE7735 `i 1164  ]
-[; ;main.c: 118: {
+[; ;main.c: 116: {
+"116
+{
+[; ;main.c: 118: buffer = SSP1BUF;
 "118
-{
-[; ;main.c: 120: buffer = SSP1BUF;
-"120
 [e = _buffer _SSP1BUF ]
-[; ;main.c: 121: if ((checksum == dataBuffer[7]))
-"121
+[; ;main.c: 120: if ((checksum == dataBuffer[7])){
+"120
 [e $ ! == -> _checksum `i -> *U + &U _dataBuffer * -> -> -> 7 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux `i 1165  ]
-[; ;main.c: 122: {
-"122
 {
-[; ;main.c: 123: kickAutoCount = 0;
-"123
+[; ;main.c: 121: kickAutoCount = 0;
+"121
 [e = _kickAutoCount -> -> -> 0 `i `l `ul ]
-[; ;main.c: 124: data_updated = 1;
-"124
+[; ;main.c: 122: data_updated = 1;
+"122
 [e = _data_updated -> -> 1 `i `uc ]
-[; ;main.c: 125: SSP1BUF = 'A';
-"125
+[; ;main.c: 123: SSP1BUF = 'A';
+"123
 [e = _SSP1BUF -> -> 65 `ui `uc ]
-[; ;main.c: 127: SETUP_releaseI2C();
-"127
+[; ;main.c: 125: SETUP_releaseI2C();
+"125
 [e ( _SETUP_releaseI2C ..  ]
-[; ;main.c: 129: SETUP_swI2C_intOff();
-"129
+[; ;main.c: 127: SETUP_swI2C_intOff();
+"127
 [e ( _SETUP_swI2C_intOff ..  ]
-[; ;main.c: 131: ESC_PWM_REG = ((unsigned short int) ((73)*dataBuffer[1]/255 + (61)));
-"131
+[; ;main.c: 129: ESC_PWM_REG = ((unsigned short int) ((73)*dataBuffer[1]/255 + (61)));
+"129
 [e = _ESC_PWM_REG -> -> + / * -> 73 `i -> *U + &U _dataBuffer * -> -> -> 1 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux `i -> 255 `i -> 61 `i `us `ui ]
-[; ;main.c: 132: AIL_PWM_REG = ((unsigned short int) ((73)*dataBuffer[2]/255 + (61)));
-"132
+[; ;main.c: 130: AIL_PWM_REG = ((unsigned short int) ((73)*dataBuffer[2]/255 + (61)));
+"130
 [e = _AIL_PWM_REG -> -> + / * -> 73 `i -> *U + &U _dataBuffer * -> -> -> 2 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux `i -> 255 `i -> 61 `i `us `ui ]
-[; ;main.c: 133: ELEV_PWM_REG = ((unsigned short int) ((73)*dataBuffer[3]/255 + (61)));
-"133
+[; ;main.c: 131: ELEV_PWM_REG = ((unsigned short int) ((73)*dataBuffer[3]/255 + (61)));
+"131
 [e = _ELEV_PWM_REG -> -> + / * -> 73 `i -> *U + &U _dataBuffer * -> -> -> 3 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux `i -> 255 `i -> 61 `i `us `ui ]
-[; ;main.c: 134: RUDD_PWM_REG = ((unsigned short int) ((73)*dataBuffer[4]/255 + (61)));
-"134
+[; ;main.c: 132: RUDD_PWM_REG = ((unsigned short int) ((73)*dataBuffer[4]/255 + (61)));
+"132
 [e = _RUDD_PWM_REG -> -> + / * -> 73 `i -> *U + &U _dataBuffer * -> -> -> 4 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux `i -> 255 `i -> 61 `i `us `ui ]
-[; ;main.c: 135: GEAR_PWM_REG = ((unsigned short int) ((73)*dataBuffer[5]/255 + (61)));
-"135
+[; ;main.c: 133: GEAR_PWM_REG = ((unsigned short int) ((73)*dataBuffer[5]/255 + (61)));
+"133
 [e = _GEAR_PWM_REG -> -> + / * -> 73 `i -> *U + &U _dataBuffer * -> -> -> 5 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux `i -> 255 `i -> 61 `i `us `ui ]
-[; ;main.c: 136: AUX_PWM_REG = ((unsigned short int) ((73)*dataBuffer[6]/255 + (61)));
-"136
+[; ;main.c: 134: AUX_PWM_REG = ((unsigned short int) ((73)*dataBuffer[6]/255 + (61)));
+"134
 [e = _AUX_PWM_REG -> -> + / * -> 73 `i -> *U + &U _dataBuffer * -> -> -> 6 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux `i -> 255 `i -> 61 `i `us `ui ]
-[; ;main.c: 138: SETUP_T0_activate(138);
-"138
+[; ;main.c: 136: SETUP_T0_activate(138);
+"136
 [e ( _SETUP_T0_activate (1 -> -> 138 `i `uc ]
-[; ;main.c: 139: ESC_n = AIL_n = RUDD_n = ELEV_n = GEAR_n = AUX_n = 1;
-"139
+[; ;main.c: 137: ESC_n = AIL_n = RUDD_n = ELEV_n = GEAR_n = AUX_n = 1;
+"137
 [e = _ESC_n = _AIL_n = _RUDD_n = _ELEV_n = _GEAR_n = _AUX_n -> -> 1 `i `uc ]
-[; ;main.c: 141: PWM_SET = 0b00111111;
-"141
+[; ;main.c: 139: PWM_SET = 0b00111111;
+"139
 [e = _PWM_SET -> -> 63 `i `uc ]
-[; ;main.c: 142: if ((dataBuffer[0] && 0x01)){
-"142
+[; ;main.c: 140: if ((dataBuffer[0] && 0x01)){
+"140
 [e $ ! && != -> *U + &U _dataBuffer * -> -> -> 0 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux `i -> -> -> 0 `i `Vuc `i != -> 1 `i -> 0 `i 1166  ]
 {
-[; ;main.c: 143: {LATBbits.LATB2 = 0;};
-"143
+[; ;main.c: 141: {LATBbits.LATB2 = 0;};
+"141
 {
 [e = . . _LATBbits 0 2 -> -> 0 `i `uc ]
 }
-"144
+"142
 }
-[; ;main.c: 144: }
+[; ;main.c: 142: }
 [e $U 1167  ]
-"145
+"143
 [e :U 1166 ]
-[; ;main.c: 145: else
-[; ;main.c: 146: {
-"146
+[; ;main.c: 143: else{
 {
-[; ;main.c: 147: {LATBbits.LATB2 = 1;};
-"147
+[; ;main.c: 144: {LATBbits.LATB2 = 1;};
+"144
 {
 [e = . . _LATBbits 0 2 -> -> 1 `i `uc ]
 }
-"148
+"145
 }
 [e :U 1167 ]
-"149
+"146
 }
-[; ;main.c: 148: }
-[; ;main.c: 149: }
+[; ;main.c: 145: }
+[; ;main.c: 146: }
 [e $U 1168  ]
-"150
+"147
 [e :U 1165 ]
-[; ;main.c: 150: else
-[; ;main.c: 151: {
-"151
+[; ;main.c: 147: else{
 {
-[; ;main.c: 152: SSP1BUF = 'N';
-"152
+[; ;main.c: 149: SSP1BUF = 'N';
+"149
 [e = _SSP1BUF -> -> 78 `ui `uc ]
-[; ;main.c: 153: SSP1CON1bits.CKP = 1;
+[; ;main.c: 150: data_updated = 0;
+"150
+[e = _data_updated -> -> 0 `i `uc ]
+[; ;main.c: 153: SETUP_releaseI2C();
 "153
-[e = . . _SSP1CON1bits 0 1 -> -> 1 `i `uc ]
-"154
-}
-[e :U 1168 ]
-[; ;main.c: 154: }
-[; ;main.c: 155: RECEIVING_FROM_MASTER = 0;
+[e ( _SETUP_releaseI2C ..  ]
+[; ;main.c: 155: SETUP_swI2C_intOff();
 "155
-[e = _RECEIVING_FROM_MASTER -> -> 0 `i `VE7735 ]
-[; ;main.c: 156: I2C_FSM = NOWHERE;
-"156
-[e = _I2C_FSM -> . `E8654 9 `VE8654 ]
-[; ;main.c: 157: return;
+[e ( _SETUP_swI2C_intOff ..  ]
+[; ;main.c: 157: SETUP_T0_activate(138);
 "157
-[e $UE 1159  ]
+[e ( _SETUP_T0_activate (1 -> -> 138 `i `uc ]
+[; ;main.c: 158: ESC_n = AIL_n = RUDD_n = ELEV_n = GEAR_n = AUX_n = 1;
 "158
-}
-[; ;main.c: 158: }
-[e $U 1169  ]
-"159
-[e :U 1164 ]
-[; ;main.c: 159: else if (SSP1STATbits.D_NOT_A && RECEIVING_FROM_MASTER)
-[e $ ! && != -> . . _SSP1STATbits 1 1 `i -> -> -> 0 `i `Vuc `i != -> _RECEIVING_FROM_MASTER `i -> -> -> 0 `i `VE7735 `i 1170  ]
-[; ;main.c: 160: {
+[e = _ESC_n = _AIL_n = _RUDD_n = _ELEV_n = _GEAR_n = _AUX_n -> -> 1 `i `uc ]
+[; ;main.c: 160: PWM_SET = 0b00111111;
 "160
+[e = _PWM_SET -> -> 63 `i `uc ]
+[; ;main.c: 161: if ((dataBuffer[0] && 0x01)){
+"161
+[e $ ! && != -> *U + &U _dataBuffer * -> -> -> 0 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux `i -> -> -> 0 `i `Vuc `i != -> 1 `i -> 0 `i 1169  ]
 {
-[; ;main.c: 162: switch(I2C_FSM)
+[; ;main.c: 162: {LATBbits.LATB2 = 0;};
 "162
-[e $U 1172  ]
-[; ;main.c: 163: {
-"163
 {
-[; ;main.c: 164: case ADDRESS_MATCH_WRITE:
-"164
-[e :U 1173 ]
-[; ;main.c: 166: checksum = 0;
-"166
-[e = _checksum -> -> 0 `i `uc ]
-[; ;main.c: 167: dataBuffer[0] = SSP1BUF;
-"167
-[e = *U + &U _dataBuffer * -> -> -> 0 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux _SSP1BUF ]
-[; ;main.c: 168: checksum ^= dataBuffer[0];
-"168
-[e =^ _checksum *U + &U _dataBuffer * -> -> -> 0 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux ]
-[; ;main.c: 169: I2C_FSM = GET_BYTE0;
-"169
-[e = _I2C_FSM -> . `E8654 2 `VE8654 ]
-[; ;main.c: 170: break;
-"170
-[e $U 1171  ]
-[; ;main.c: 171: case GET_BYTE0:
-"171
-[e :U 1174 ]
-[; ;main.c: 172: dataBuffer[1] = SSP1BUF;
-"172
-[e = *U + &U _dataBuffer * -> -> -> 1 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux _SSP1BUF ]
-[; ;main.c: 173: checksum ^= dataBuffer[1];
-"173
-[e =^ _checksum *U + &U _dataBuffer * -> -> -> 1 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux ]
-[; ;main.c: 174: I2C_FSM = GET_BYTE1;
-"174
-[e = _I2C_FSM -> . `E8654 3 `VE8654 ]
-[; ;main.c: 175: break;
-"175
-[e $U 1171  ]
-[; ;main.c: 176: case GET_BYTE1:
-"176
-[e :U 1175 ]
-[; ;main.c: 177: dataBuffer[2] = SSP1BUF;
-"177
-[e = *U + &U _dataBuffer * -> -> -> 2 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux _SSP1BUF ]
-[; ;main.c: 178: checksum ^= dataBuffer[2];
-"178
-[e =^ _checksum *U + &U _dataBuffer * -> -> -> 2 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux ]
-[; ;main.c: 179: I2C_FSM = GET_BYTE2;
-"179
-[e = _I2C_FSM -> . `E8654 4 `VE8654 ]
-[; ;main.c: 180: break;
-"180
-[e $U 1171  ]
-[; ;main.c: 181: case GET_BYTE2:
-"181
-[e :U 1176 ]
-[; ;main.c: 182: dataBuffer[3] = SSP1BUF;
-"182
-[e = *U + &U _dataBuffer * -> -> -> 3 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux _SSP1BUF ]
-[; ;main.c: 183: checksum ^= dataBuffer[3];
-"183
-[e =^ _checksum *U + &U _dataBuffer * -> -> -> 3 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux ]
-[; ;main.c: 184: I2C_FSM = GET_BYTE3;
-"184
-[e = _I2C_FSM -> . `E8654 5 `VE8654 ]
-[; ;main.c: 185: break;
-"185
-[e $U 1171  ]
-[; ;main.c: 186: case GET_BYTE3:
-"186
-[e :U 1177 ]
-[; ;main.c: 187: dataBuffer[4] = SSP1BUF;
-"187
-[e = *U + &U _dataBuffer * -> -> -> 4 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux _SSP1BUF ]
-[; ;main.c: 188: checksum ^= dataBuffer[4];
-"188
-[e =^ _checksum *U + &U _dataBuffer * -> -> -> 4 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux ]
-[; ;main.c: 189: I2C_FSM = GET_BYTE4;
-"189
-[e = _I2C_FSM -> . `E8654 6 `VE8654 ]
-[; ;main.c: 190: break;
-"190
-[e $U 1171  ]
-[; ;main.c: 191: case GET_BYTE4:
-"191
-[e :U 1178 ]
-[; ;main.c: 192: dataBuffer[5] = SSP1BUF;
-"192
-[e = *U + &U _dataBuffer * -> -> -> 5 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux _SSP1BUF ]
-[; ;main.c: 193: checksum ^= dataBuffer[5];
-"193
-[e =^ _checksum *U + &U _dataBuffer * -> -> -> 5 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux ]
-[; ;main.c: 194: I2C_FSM = GET_BYTE5;
-"194
-[e = _I2C_FSM -> . `E8654 7 `VE8654 ]
-[; ;main.c: 195: break;
-"195
-[e $U 1171  ]
-[; ;main.c: 196: case GET_BYTE5:
-"196
-[e :U 1179 ]
-[; ;main.c: 197: dataBuffer[6] = SSP1BUF;
-"197
-[e = *U + &U _dataBuffer * -> -> -> 6 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux _SSP1BUF ]
-[; ;main.c: 198: checksum ^= dataBuffer[6];
-"198
-[e =^ _checksum *U + &U _dataBuffer * -> -> -> 6 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux ]
-[; ;main.c: 199: I2C_FSM = GET_CHKSUM;
-"199
-[e = _I2C_FSM -> . `E8654 8 `VE8654 ]
-[; ;main.c: 200: break;
-"200
-[e $U 1171  ]
-[; ;main.c: 201: case GET_CHKSUM:
-"201
-[e :U 1180 ]
-[; ;main.c: 202: dataBuffer[7] = SSP1BUF;
-"202
-[e = *U + &U _dataBuffer * -> -> -> 7 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux _SSP1BUF ]
-[; ;main.c: 203: I2C_FSM = NOWHERE;
-"203
-[e = _I2C_FSM -> . `E8654 9 `VE8654 ]
-[; ;main.c: 204: break;
-"204
-[e $U 1171  ]
-[; ;main.c: 205: default:
-"205
-[e :U 1181 ]
-[; ;main.c: 206: break;
-"206
-[e $U 1171  ]
-"207
+[e = . . _LATBbits 0 2 -> -> 0 `i `uc ]
 }
-[; ;main.c: 207: }
-[e $U 1171  ]
-"162
-[e :U 1172 ]
-[e [\ _I2C_FSM , $ -> . `E8654 0 `VE8654 1173
- , $ -> . `E8654 2 `VE8654 1174
- , $ -> . `E8654 3 `VE8654 1175
- , $ -> . `E8654 4 `VE8654 1176
- , $ -> . `E8654 5 `VE8654 1177
- , $ -> . `E8654 6 `VE8654 1178
- , $ -> . `E8654 7 `VE8654 1179
- , $ -> . `E8654 8 `VE8654 1180
- 1181 ]
-"207
-[e :U 1171 ]
-"208
+"163
+}
+[; ;main.c: 163: }
+[e $U 1170  ]
+"164
+[e :U 1169 ]
+[; ;main.c: 164: else{
+{
+[; ;main.c: 165: {LATBbits.LATB2 = 1;};
+"165
+{
+[e = . . _LATBbits 0 2 -> -> 1 `i `uc ]
+}
+"166
 }
 [e :U 1170 ]
+"167
+}
+[e :U 1168 ]
+[; ;main.c: 166: }
+[; ;main.c: 167: }
+[; ;main.c: 169: RECEIVING_FROM_MASTER = 0;
+"169
+[e = _RECEIVING_FROM_MASTER -> -> 0 `i `VE7735 ]
+[; ;main.c: 170: I2C_FSM = NOWHERE;
+"170
+[e = _I2C_FSM -> . `E8654 9 `VE8654 ]
+[; ;main.c: 171: return;
+"171
+[e $UE 1159  ]
+"172
+}
+[; ;main.c: 172: }
+[e $U 1171  ]
+"173
+[e :U 1164 ]
+[; ;main.c: 173: else if (SSP1STATbits.D_NOT_A && RECEIVING_FROM_MASTER)
+[e $ ! && != -> . . _SSP1STATbits 1 1 `i -> -> -> 0 `i `Vuc `i != -> _RECEIVING_FROM_MASTER `i -> -> -> 0 `i `VE7735 `i 1172  ]
+[; ;main.c: 174: {
+"174
+{
+[; ;main.c: 176: switch(I2C_FSM)
+"176
+[e $U 1174  ]
+[; ;main.c: 177: {
+"177
+{
+[; ;main.c: 178: case ADDRESS_MATCH_WRITE:
+"178
+[e :U 1175 ]
+[; ;main.c: 180: checksum = 0;
+"180
+[e = _checksum -> -> 0 `i `uc ]
+[; ;main.c: 181: dataBuffer[0] = SSP1BUF;
+"181
+[e = *U + &U _dataBuffer * -> -> -> 0 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux _SSP1BUF ]
+[; ;main.c: 182: checksum ^= dataBuffer[0];
+"182
+[e =^ _checksum *U + &U _dataBuffer * -> -> -> 0 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux ]
+[; ;main.c: 183: I2C_FSM = GET_BYTE0;
+"183
+[e = _I2C_FSM -> . `E8654 2 `VE8654 ]
+[; ;main.c: 184: break;
+"184
+[e $U 1173  ]
+[; ;main.c: 185: case GET_BYTE0:
+"185
+[e :U 1176 ]
+[; ;main.c: 186: dataBuffer[1] = SSP1BUF;
+"186
+[e = *U + &U _dataBuffer * -> -> -> 1 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux _SSP1BUF ]
+[; ;main.c: 187: checksum ^= dataBuffer[1];
+"187
+[e =^ _checksum *U + &U _dataBuffer * -> -> -> 1 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux ]
+[; ;main.c: 188: I2C_FSM = GET_BYTE1;
+"188
+[e = _I2C_FSM -> . `E8654 3 `VE8654 ]
+[; ;main.c: 189: break;
+"189
+[e $U 1173  ]
+[; ;main.c: 190: case GET_BYTE1:
+"190
+[e :U 1177 ]
+[; ;main.c: 191: dataBuffer[2] = SSP1BUF;
+"191
+[e = *U + &U _dataBuffer * -> -> -> 2 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux _SSP1BUF ]
+[; ;main.c: 192: checksum ^= dataBuffer[2];
+"192
+[e =^ _checksum *U + &U _dataBuffer * -> -> -> 2 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux ]
+[; ;main.c: 193: I2C_FSM = GET_BYTE2;
+"193
+[e = _I2C_FSM -> . `E8654 4 `VE8654 ]
+[; ;main.c: 194: break;
+"194
+[e $U 1173  ]
+[; ;main.c: 195: case GET_BYTE2:
+"195
+[e :U 1178 ]
+[; ;main.c: 196: dataBuffer[3] = SSP1BUF;
+"196
+[e = *U + &U _dataBuffer * -> -> -> 3 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux _SSP1BUF ]
+[; ;main.c: 197: checksum ^= dataBuffer[3];
+"197
+[e =^ _checksum *U + &U _dataBuffer * -> -> -> 3 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux ]
+[; ;main.c: 198: I2C_FSM = GET_BYTE3;
+"198
+[e = _I2C_FSM -> . `E8654 5 `VE8654 ]
+[; ;main.c: 199: break;
+"199
+[e $U 1173  ]
+[; ;main.c: 200: case GET_BYTE3:
+"200
+[e :U 1179 ]
+[; ;main.c: 201: dataBuffer[4] = SSP1BUF;
+"201
+[e = *U + &U _dataBuffer * -> -> -> 4 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux _SSP1BUF ]
+[; ;main.c: 202: checksum ^= dataBuffer[4];
+"202
+[e =^ _checksum *U + &U _dataBuffer * -> -> -> 4 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux ]
+[; ;main.c: 203: I2C_FSM = GET_BYTE4;
+"203
+[e = _I2C_FSM -> . `E8654 6 `VE8654 ]
+[; ;main.c: 204: break;
+"204
+[e $U 1173  ]
+[; ;main.c: 205: case GET_BYTE4:
+"205
+[e :U 1180 ]
+[; ;main.c: 206: dataBuffer[5] = SSP1BUF;
+"206
+[e = *U + &U _dataBuffer * -> -> -> 5 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux _SSP1BUF ]
+[; ;main.c: 207: checksum ^= dataBuffer[5];
+"207
+[e =^ _checksum *U + &U _dataBuffer * -> -> -> 5 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux ]
+[; ;main.c: 208: I2C_FSM = GET_BYTE5;
+"208
+[e = _I2C_FSM -> . `E8654 7 `VE8654 ]
+[; ;main.c: 209: break;
+"209
+[e $U 1173  ]
+[; ;main.c: 210: case GET_BYTE5:
 "210
-[e :U 1169 ]
-[e :U 1163 ]
-[; ;main.c: 208: }
-[; ;main.c: 210: SSP1CON1bits.CKP = 1;
-[e = . . _SSP1CON1bits 0 1 -> -> 1 `i `uc ]
+[e :U 1181 ]
+[; ;main.c: 211: dataBuffer[6] = SSP1BUF;
 "211
+[e = *U + &U _dataBuffer * -> -> -> 6 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux _SSP1BUF ]
+[; ;main.c: 212: checksum ^= dataBuffer[6];
+"212
+[e =^ _checksum *U + &U _dataBuffer * -> -> -> 6 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux ]
+[; ;main.c: 213: I2C_FSM = GET_CHKSUM;
+"213
+[e = _I2C_FSM -> . `E8654 8 `VE8654 ]
+[; ;main.c: 214: break;
+"214
+[e $U 1173  ]
+[; ;main.c: 215: case GET_CHKSUM:
+"215
+[e :U 1182 ]
+[; ;main.c: 216: dataBuffer[7] = SSP1BUF;
+"216
+[e = *U + &U _dataBuffer * -> -> -> 7 `i `ui `ux -> -> # *U &U _dataBuffer `ui `ux _SSP1BUF ]
+[; ;main.c: 217: I2C_FSM = NOWHERE;
+"217
+[e = _I2C_FSM -> . `E8654 9 `VE8654 ]
+[; ;main.c: 218: break;
+"218
+[e $U 1173  ]
+[; ;main.c: 219: default:
+"219
+[e :U 1183 ]
+[; ;main.c: 220: break;
+"220
+[e $U 1173  ]
+"221
+}
+[; ;main.c: 221: }
+[e $U 1173  ]
+"176
+[e :U 1174 ]
+[e [\ _I2C_FSM , $ -> . `E8654 0 `VE8654 1175
+ , $ -> . `E8654 2 `VE8654 1176
+ , $ -> . `E8654 3 `VE8654 1177
+ , $ -> . `E8654 4 `VE8654 1178
+ , $ -> . `E8654 5 `VE8654 1179
+ , $ -> . `E8654 6 `VE8654 1180
+ , $ -> . `E8654 7 `VE8654 1181
+ , $ -> . `E8654 8 `VE8654 1182
+ 1183 ]
+"221
+[e :U 1173 ]
+"222
+}
+[e :U 1172 ]
+"224
+[e :U 1171 ]
+[e :U 1163 ]
+[; ;main.c: 222: }
+[; ;main.c: 224: SSP1CON1bits.CKP = 1;
+[e = . . _SSP1CON1bits 0 1 -> -> 1 `i `uc ]
+"225
 }
 [e :U 1160 ]
-[; ;main.c: 211: }
-[; ;main.c: 213: if (INTCONbits.TMR0IF && INTCONbits.TMR0IE){
-"213
-[e $ ! && != -> . . _INTCONbits 0 2 `i -> -> -> 0 `i `Vuc `i != -> . . _INTCONbits 0 5 `i -> -> -> 0 `i `Vuc `i 1182  ]
-{
-[; ;main.c: 215: INTCONbits.TMR0IF = 0;
-"215
-[e = . . _INTCONbits 0 2 -> -> 0 `i `uc ]
-[; ;main.c: 217: TMR0L = 138 + TMR0L;
-"217
-[e = _TMR0L -> + -> 138 `i -> _TMR0L `i `uc ]
-[; ;main.c: 220: LATBbits.LATB0 = ESC_n;
-"220
-[e = . . _LATBbits 0 0 _ESC_n ]
-[; ;main.c: 221: LATBbits.LATB3 = AIL_n;
-"221
-[e = . . _LATBbits 0 3 _AIL_n ]
-[; ;main.c: 222: LATBbits.LATB5 = RUDD_n;
-"222
-[e = . . _LATBbits 0 5 _RUDD_n ]
-[; ;main.c: 223: LATBbits.LATB4 = ELEV_n;
-"223
-[e = . . _LATBbits 0 4 _ELEV_n ]
-[; ;main.c: 224: LATCbits.LATC2 = GEAR_n;
-"224
-[e = . . _LATCbits 0 2 _GEAR_n ]
-[; ;main.c: 225: LATAbits.LATA4 = AUX_n;
-"225
-[e = . . _LATAbits 0 4 _AUX_n ]
-[; ;main.c: 227: if (PWM_SET == 0x00){
+[; ;main.c: 225: }
+[; ;main.c: 227: if (INTCONbits.TMR0IF && INTCONbits.TMR0IE){
 "227
-[e $ ! == -> _PWM_SET `i -> 0 `i 1183  ]
+[e $ ! && != -> . . _INTCONbits 0 2 `i -> -> -> 0 `i `Vuc `i != -> . . _INTCONbits 0 5 `i -> -> -> 0 `i `Vuc `i 1184  ]
 {
-[; ;main.c: 228: PWM_SET == 0b00111111;
-"228
-[e == -> _PWM_SET `i -> 63 `i ]
-[; ;main.c: 230: SETUP_T0_deactivate();
-"230
-[e ( _SETUP_T0_deactivate ..  ]
-[; ;main.c: 232: SETUP_swI2C_intOn();
-"232
-[e ( _SETUP_swI2C_intOn ..  ]
-[; ;main.c: 233: count = 0;
-"233
-[e = _count -> -> 0 `i `ui ]
+[; ;main.c: 229: INTCONbits.TMR0IF = 0;
+"229
+[e = . . _INTCONbits 0 2 -> -> 0 `i `uc ]
+[; ;main.c: 231: TMR0L = 138 + TMR0L;
+"231
+[e = _TMR0L -> + -> 138 `i -> _TMR0L `i `uc ]
+[; ;main.c: 234: LATBbits.LATB0 = ESC_n;
 "234
-}
-[e :U 1183 ]
-[; ;main.c: 234: }
-[; ;main.c: 237: count++;
+[e = . . _LATBbits 0 0 _ESC_n ]
+[; ;main.c: 235: LATBbits.LATB3 = AIL_n;
+"235
+[e = . . _LATBbits 0 3 _AIL_n ]
+[; ;main.c: 236: LATBbits.LATB5 = RUDD_n;
+"236
+[e = . . _LATBbits 0 5 _RUDD_n ]
+[; ;main.c: 237: LATBbits.LATB4 = ELEV_n;
 "237
-[e ++ _count -> -> 1 `i `ui ]
-[; ;main.c: 238: if (count == ESC_PWM_REG){
+[e = . . _LATBbits 0 4 _ELEV_n ]
+[; ;main.c: 238: LATCbits.LATC2 = GEAR_n;
 "238
-[e $ ! == _count _ESC_PWM_REG 1184  ]
-{
-[; ;main.c: 239: PWM_SET &= 0b11111110;
+[e = . . _LATCbits 0 2 _GEAR_n ]
+[; ;main.c: 239: LATAbits.LATA4 = AUX_n;
 "239
-[e =& _PWM_SET -> -> 254 `i `uc ]
-[; ;main.c: 240: ESC_n = 0;
-"240
-[e = _ESC_n -> -> 0 `i `uc ]
+[e = . . _LATAbits 0 4 _AUX_n ]
+[; ;main.c: 241: if (PWM_SET == 0x00){
 "241
-}
-[e :U 1184 ]
-[; ;main.c: 241: }
-[; ;main.c: 242: if (count == AIL_PWM_REG){
-"242
-[e $ ! == _count _AIL_PWM_REG 1185  ]
+[e $ ! == -> _PWM_SET `i -> 0 `i 1185  ]
 {
-[; ;main.c: 243: PWM_SET &= 0b11111101;
-"243
-[e =& _PWM_SET -> -> 253 `i `uc ]
-[; ;main.c: 244: AIL_n = 0;
+[; ;main.c: 242: PWM_SET == 0b00111111;
+"242
+[e == -> _PWM_SET `i -> 63 `i ]
+[; ;main.c: 244: SETUP_T0_deactivate();
 "244
-[e = _AIL_n -> -> 0 `i `uc ]
-"245
+[e ( _SETUP_T0_deactivate ..  ]
+[; ;main.c: 246: SETUP_swI2C_intOn();
+"246
+[e ( _SETUP_swI2C_intOn ..  ]
+[; ;main.c: 247: count = 0;
+"247
+[e = _count -> -> 0 `i `ui ]
+"248
 }
 [e :U 1185 ]
-[; ;main.c: 245: }
-[; ;main.c: 246: if (count == RUDD_PWM_REG){
-"246
-[e $ ! == _count _RUDD_PWM_REG 1186  ]
+[; ;main.c: 248: }
+[; ;main.c: 251: count++;
+"251
+[e ++ _count -> -> 1 `i `ui ]
+[; ;main.c: 252: if (count == ESC_PWM_REG){
+"252
+[e $ ! == _count _ESC_PWM_REG 1186  ]
 {
-[; ;main.c: 247: PWM_SET &= 0b11111011;
-"247
-[e =& _PWM_SET -> -> 251 `i `uc ]
-[; ;main.c: 248: RUDD_n = 0;
-"248
-[e = _RUDD_n -> -> 0 `i `uc ]
-"249
+[; ;main.c: 253: PWM_SET &= 0b11111110;
+"253
+[e =& _PWM_SET -> -> 254 `i `uc ]
+[; ;main.c: 254: ESC_n = 0;
+"254
+[e = _ESC_n -> -> 0 `i `uc ]
+"255
 }
 [e :U 1186 ]
-[; ;main.c: 249: }
-[; ;main.c: 250: if (count == ELEV_PWM_REG){
-"250
-[e $ ! == _count _ELEV_PWM_REG 1187  ]
+[; ;main.c: 255: }
+[; ;main.c: 256: if (count == AIL_PWM_REG){
+"256
+[e $ ! == _count _AIL_PWM_REG 1187  ]
 {
-[; ;main.c: 251: PWM_SET &= 0b11110111;
-"251
-[e =& _PWM_SET -> -> 247 `i `uc ]
-[; ;main.c: 252: ELEV_n = 0;
-"252
-[e = _ELEV_n -> -> 0 `i `uc ]
-"253
+[; ;main.c: 257: PWM_SET &= 0b11111101;
+"257
+[e =& _PWM_SET -> -> 253 `i `uc ]
+[; ;main.c: 258: AIL_n = 0;
+"258
+[e = _AIL_n -> -> 0 `i `uc ]
+"259
 }
 [e :U 1187 ]
-[; ;main.c: 253: }
-[; ;main.c: 254: if (count == GEAR_PWM_REG){
-"254
-[e $ ! == _count _GEAR_PWM_REG 1188  ]
+[; ;main.c: 259: }
+[; ;main.c: 260: if (count == RUDD_PWM_REG){
+"260
+[e $ ! == _count _RUDD_PWM_REG 1188  ]
 {
-[; ;main.c: 255: PWM_SET &= 0b11101111;
-"255
-[e =& _PWM_SET -> -> 239 `i `uc ]
-[; ;main.c: 256: GEAR_n = 0;
-"256
-[e = _GEAR_n -> -> 0 `i `uc ]
-"257
+[; ;main.c: 261: PWM_SET &= 0b11111011;
+"261
+[e =& _PWM_SET -> -> 251 `i `uc ]
+[; ;main.c: 262: RUDD_n = 0;
+"262
+[e = _RUDD_n -> -> 0 `i `uc ]
+"263
 }
 [e :U 1188 ]
-[; ;main.c: 257: }
-[; ;main.c: 258: if (count == AUX_PWM_REG){
-"258
-[e $ ! == _count _AUX_PWM_REG 1189  ]
+[; ;main.c: 263: }
+[; ;main.c: 264: if (count == ELEV_PWM_REG){
+"264
+[e $ ! == _count _ELEV_PWM_REG 1189  ]
 {
-[; ;main.c: 259: PWM_SET &= 0b11011111;
-"259
-[e =& _PWM_SET -> -> 223 `i `uc ]
-[; ;main.c: 260: AUX_n = 0;
-"260
-[e = _AUX_n -> -> 0 `i `uc ]
-"261
+[; ;main.c: 265: PWM_SET &= 0b11110111;
+"265
+[e =& _PWM_SET -> -> 247 `i `uc ]
+[; ;main.c: 266: ELEV_n = 0;
+"266
+[e = _ELEV_n -> -> 0 `i `uc ]
+"267
 }
 [e :U 1189 ]
-"262
+[; ;main.c: 267: }
+[; ;main.c: 268: if (count == GEAR_PWM_REG){
+"268
+[e $ ! == _count _GEAR_PWM_REG 1190  ]
+{
+[; ;main.c: 269: PWM_SET &= 0b11101111;
+"269
+[e =& _PWM_SET -> -> 239 `i `uc ]
+[; ;main.c: 270: GEAR_n = 0;
+"270
+[e = _GEAR_n -> -> 0 `i `uc ]
+"271
 }
-[e :U 1182 ]
-[; ;main.c: 261: }
-[; ;main.c: 262: }
-[; ;main.c: 263: }
-"263
+[e :U 1190 ]
+[; ;main.c: 271: }
+[; ;main.c: 272: if (count == AUX_PWM_REG){
+"272
+[e $ ! == _count _AUX_PWM_REG 1191  ]
+{
+[; ;main.c: 273: PWM_SET &= 0b11011111;
+"273
+[e =& _PWM_SET -> -> 223 `i `uc ]
+[; ;main.c: 274: AUX_n = 0;
+"274
+[e = _AUX_n -> -> 0 `i `uc ]
+"275
+}
+[e :U 1191 ]
+"276
+}
+[e :U 1184 ]
+[; ;main.c: 275: }
+[; ;main.c: 276: }
+[; ;main.c: 277: }
+"277
 [e :UE 1159 ]
 }

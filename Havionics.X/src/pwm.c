@@ -50,10 +50,27 @@ bool PWM_sendData(void){
         IdleI2C2();
     }
 
-    // Write checksum
-    MasterWriteI2C2(checksum);
-    IdleI2C2();
+    #if defined (PWM_TEST)
+        static int count = 0;
+        if (count++ < 1){
+            // Write checksum
+            MasterWriteI2C2(checksum);
+            IdleI2C2();
+        }
+        else{
+            // Write fake checksum
+            MasterWriteI2C2(0x00);
+            IdleI2C2();
 
+            if (count == 10){
+                count = 0;
+            }
+        }
+    #else
+        // Write checksum
+        MasterWriteI2C2(checksum);
+        IdleI2C2();
+    #endif
     // End of send sequence
 
     // Now send restart, with read command
@@ -85,6 +102,15 @@ bool PWM_sendData(void){
     	return 1;
     else
     	return 0;
+}
+
+UINT8 PWM_GAIN2BYTE(float Kp){
+    if (Kp > 70)
+        Kp = 70;
+    if (Kp < 30)
+        Kp = 30;
+    float gyrogain_us = (2000 - Kp*10);
+    return PWM_PULSEWIDTH2BYTE((int)(gyrogain_us + 0.5));   // add 0.5 to round to nearest int
 }
 
 UINT8 PWM_PULSEWIDTH2BYTE(int pulsewidth){

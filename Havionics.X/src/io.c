@@ -9,7 +9,7 @@
  * Describe interrupts:
  *      CoreTimer INT PRIORITY:SUBPRIORITY 7:2
  *      Battery ADC interrupt 1:3
- * 
+ *
  * Other notes:
  * IO uses Timer 1 for delays
  * IO uses Timer 2 for PWM module
@@ -34,7 +34,7 @@ volatile bool IO_localControl = true;
 volatile bool IO_stateProject = false;
 volatile bool IO_sdFlush = false;
 volatile bool IO_closeFiles = false;
-volatile UINT8 IO_gyro_gain = 111;
+volatile UINT8 IO_gyro_gain = 115;
 volatile UINT8 IO_statusReg = 0x00;
 
 /* Mutex type variables */
@@ -73,124 +73,133 @@ volatile UINT8 IO_PWM_packet[10] = {0};
 // Roll channel control parameters
 // ***********************************
 // +ve lateral  input ----> -ve roll
-#define IO_ROLL_KP              (-1200)
-#define IO_ROLL_NOTCH_WN_Z      (16.43)
-#define IO_ROLL_NOTCH_WZ_DAMP   (0.14)
-#define IO_ROLL_NOTCH_WN_P      (16.43)
-#define IO_ROLL_NOTCH_WP_DAMP   (1)
-#define IO_LATERAL_BIAS         (20)
+#define IO_ROLL_KP              (-1200.0)
+#define IO_ROLL_NOTCH_WN_Z      (16.5)
+#define IO_ROLL_NOTCH_WZ_DAMP   (0.2)
+#define IO_ROLL_NOTCH_WN_P      (16.5)
+#define IO_ROLL_NOTCH_WP_DAMP   (1.0)
+#define IO_LATERAL_BIAS         (3.0)
 #define IO_ROLL_BIAS            (-2*M_PI/180)
 #define IO_ROLL_ANGLE_LOWER_LIMIT   (-30*M_PI/180)
 #define IO_ROLL_ANGLE_UPPER_LIMIT   (30*M_PI/180)
-#define IO_LATERAL_UPPER_LIMIT  (300)
-#define IO_LATERAL_LOWER_LIMIT  (-300)
-#define IO_LAT_LOWER_LIMIT      (-500)
-#define IO_LAT_UPPER_LIMIT      (500)
+#define IO_LATERAL_UPPER_LIMIT  (300.0)
+#define IO_LATERAL_LOWER_LIMIT  (-300.0)
+#define IO_LAT_LOWER_LIMIT      (-500.0)
+#define IO_LAT_UPPER_LIMIT      (500.0)
 
 // ***********************************
 // Pitch channel control parameters
 // ***********************************
 // +ve longitudinal input ----> -ve pitch
-#define IO_PITCH_KP              (-1800)
-#define IO_PITCH_NOTCH_WN_Z      (15.3)
+#define IO_PITCH_KP              (-2000.0)
+#define IO_PITCH_NOTCH_WN_Z      (16.0)
 #define IO_PITCH_NOTCH_WZ_DAMP   (0.2)
-#define IO_PITCH_NOTCH_WN_P      (15.3)
-#define IO_PITCH_NOTCH_WP_DAMP   (1)
-#define IO_LONGITUDINAL_BIAS     (-3)
+#define IO_PITCH_NOTCH_WN_P      (16.0)
+#define IO_PITCH_NOTCH_WP_DAMP   (1.0)
+#define IO_LONGITUDINAL_BIAS     (13.0)
 #define IO_PITCH_BIAS           (-3.4*M_PI/180)
 #define IO_PITCH_ANGLE_LOWER_LIMIT   (-30*M_PI/180)
 #define IO_PITCH_ANGLE_UPPER_LIMIT   (30*M_PI/180)
-#define IO_LONGITUDINAL_UPPER_LIMIT (300)
-#define IO_LONGITUDINAL_LOWER_LIMIT (-300)
-#define IO_LON_LOWER_LIMIT      (-500)
-#define IO_LON_UPPER_LIMIT      (500)
+#define IO_LONGITUDINAL_UPPER_LIMIT (300.0)
+#define IO_LONGITUDINAL_LOWER_LIMIT (-300.0)
+#define IO_LON_LOWER_LIMIT      (-500.0)
+#define IO_LON_UPPER_LIMIT      (500.0)
 
 // ***********************************
 // Position control
-#define IO_X_KP             (-0.048)
-#define IO_X_OMEGA_TI       (0.7)
-#define IO_X_OMEGA_LEAD_1   (0.4)
-#define IO_X_OMEGA_LAG_1    (40)
+#define IO_X_KP             (-0.014)
+#define IO_X_OMEGA_TI       (0.6)
+#define IO_X_OMEGA_LEAD_1   (0.1)
+#define IO_X_OMEGA_LAG_1    (40.0)
 #define IO_X_OMEGA_LEAD_2   (0.6)
-#define IO_X_OMEGA_LAG_2    (40)
-#define IO_X_LPF_WN         (45)
+#define IO_X_OMEGA_LAG_2    (40.0)
+#define IO_X_LPF_WN         (50.0)
 
-#define IO_Y_KP             (0.045)
-#define IO_Y_OMEGA_TI       (0.7)
-#define IO_Y_OMEGA_LEAD_1   (0.45)
-#define IO_Y_OMEGA_LAG_1    (40)
+#define IO_Y_KP             (0.015)
+#define IO_Y_OMEGA_TI       (0.6)
+#define IO_Y_OMEGA_LEAD_1   (0.1)
+#define IO_Y_OMEGA_LAG_1    (40.0)
 #define IO_Y_OMEGA_LEAD_2   (0.65)
-#define IO_Y_OMEGA_LAG_2    (40)
-#define IO_Y_LPF_WN         (45)
+#define IO_Y_OMEGA_LAG_2    (40.0)
+#define IO_Y_LPF_WN         (50.0)
 
-#define IO_X_LOWER_LIMIT    (-1)
-#define IO_X_UPPER_LIMIT    (1)
-#define IO_Y_LOWER_LIMIT    (-1)
-#define IO_Y_UPPER_LIMIT    (1)
+#define IO_TRANSLATION_WN   (1.0)
+
+#define IO_X_LOWER_LIMIT    (-1.0)
+#define IO_X_UPPER_LIMIT    (1.0)
+#define IO_Y_LOWER_LIMIT    (-1.0)
+#define IO_Y_UPPER_LIMIT    (1.0)
 
 // ***********************************
 
 // **********************************
 // Heave channel control parameters
 // ***********************************
-#define IO_HEAVE_KP          (-70)
-#define IO_HEAVE_OMEGA_LEAD  (1)
-#define IO_HEAVE_OMEGA_LAG   (40)
-#define IO_HEAVE_OMEGA_TI    (1)
-#define IO_NORMAL_HEAVE_UPPER_LIMIT (200)
-#define IO_NORMAL_HEAVE_LOWER_LIMIT (0)
-#define IO_TAKEOFF_HEAVE_UPPER_LIMIT (140)
-#define IO_TAKEOFF_HEAVE_LOWER_LIMIT (0)
-#define IO_ALTITUDE_LIMIT       (2)
-#define IO_ALTITUDE_LPF_WN      (2)
-#define IO_THROTTLE_ST1_MIN     (931)
-#define IO_THROTTLE_ST1_MAX     (1320)
+// Heave yaw decouple matrix
+#define IO_HEAVE_YAW_DECOUPLER_11   (1.0)
+#define IO_HEAVE_YAW_DECOUPLER_12   (0.0)
+#define IO_HEAVE_YAW_DECOUPLER_21   (1.2)
+#define IO_HEAVE_YAW_DECOUPLER_22   (1.0)
+#define IO_HEAVE_KP          (-75.0)
+#define IO_HEAVE_OMEGA_LEAD  (1.0)
+#define IO_HEAVE_OMEGA_LAG   (40.0)
+#define IO_HEAVE_OMEGA_TI    (1.3)
+#define IO_NORMAL_HEAVE_UPPER_LIMIT (200.0)
+#define IO_NORMAL_HEAVE_LOWER_LIMIT (0.0)
+#define IO_TAKEOFF_HEAVE_UPPER_LIMIT (140.0)
+#define IO_TAKEOFF_HEAVE_LOWER_LIMIT (0.0)
+#define IO_ALTITUDE_LIMIT       (2.0)
+#define IO_ALTITUDE_LPF_WN      (2.0)
+#define IO_THROTTLE_ST1_MIN     (931.0)
+#define IO_THROTTLE_ST1_MAX     (1320.0)
 #define IO_ST1_MAX_HEIGHT       (0.3)
-#define IO_ST1_DIV              (1297)  // (1320-931)/0.3
-#define IO_THROTTLE_ST2_MAX     (1998)
+#define IO_ST1_DIV              (1297.0)  // (1320-931)/0.3
+#define IO_THROTTLE_ST2_MAX     (1998.0)
 #define IO_ST2_MAX_HEIGHT       IO_ALTITUDE_LIMIT
-#define IO_ST2_DIV              (197)   // (1998-1320)/(2-0.3)
+#define IO_ST2_DIV              (197.0)   // (1998-1320)/(2-0.3)
 #define IO_LANDING_REF_THRESH   (0.28)
-#define IO_COLLECTIVE_NOMINAL   (100)
+#define IO_COLLECTIVE_NOMINAL   (100.0)
 #define IO_OL_CLIMB_RATE        (0.04)
 #define IO_CL_DESCENT_RATE      (0.8e-3)        // 80mm/s
-#define IO_COLLECTIVE_TAKEOFF_MAX   (132)
+#define IO_COLLECTIVE_TAKEOFF_MAX   (136.0)
 #define IO_HEAVE_DT_NOMINAL     (80e-3)
-#define IO_COLLECTIVE_START     (115)
-#define IO_COLLECTIVE_AUTOROT   (150)
-#define IO_COLLECTIVE_LAND      (100)
+#define IO_COLLECTIVE_START     (115.0)
+#define IO_COLLECTIVE_AUTOROT   (150.0)
+#define IO_COLLECTIVE_LAND      (100.0)
 #define IO_LANDING_HEIGHT       (0.3)
-#define IO_COLLECTIVE_LAND_T0   (125)
-#define IO_COL_UPPER_LIMIT      (500)
+#define IO_COLLECTIVE_LAND_T0   (125.0)
+#define IO_COL_UPPER_LIMIT      (500.0)
 #define IO_COL_LOWER_LIMIT      (0)
 
 // **********************************
 // Yaw channel control parameters
 // ***********************************
-#define IO_YAW_KP          (400)
-#define IO_YAW_OMEGA_LEAD  (6)
-#define IO_YAW_OMEGA_LAG   (40)
-#define IO_YAW_OMEGA_TI    (2)
-#define IO_YAW_UPPER_LIMIT (420)
-#define IO_YAW_LOWER_LIMIT (-420)
-#define IO_YAW_LPF_WN        (5)
+#define IO_YAW_KP          (300.0)
+#define IO_YAW_OMEGA_LEAD  (2.0)
+#define IO_YAW_OMEGA_LAG   (40.0)
+#define IO_YAW_OMEGA_TI    (5.0)
+#define IO_YAW_UPPER_LIMIT (420.0)
+#define IO_YAW_LOWER_LIMIT (-420.0)
+#define IO_YAW_LPF_WN        (5.0)
+#define IO_YAW_WN          (15.0)
 #define IO_YAW_ANGLE_LIMIT (2*M_PI)
+#define IO_GYRO_GAIN       (52.0)
 
 // Speed control parameters
 // Input PWM 0-255, Output speed rad/s
 // **********************************
 //             (s/2.13 + 1)
 // G(s) = 1.44 -----------      omega_gc = 4.12 rad/s
-//                  s     
+//                  s
 // With H(s) = 1/(s/(2*pi*10 + 1) + 1) on sensor signal
-#define IO_SPEED_KP          (1.44)
+#define IO_SPEED_KP          (1.5)
 #define IO_SPEED_OMEGA_TI    (2.13)
-#define IO_SPEED_LPF_WN      (2*M_PI*5)
-#define IO_SPEED_UPPER_LIMIT (254)
-#define IO_SPEED_LOWER_LIMIT (0)
-#define IO_SPEED_WN_LPF      (40)
-#define IO_SPEED_RATE2       (1500)     // Speed at which reference rate doubles
-#define IO_THROTTLE_THRESH   (1100)
+#define IO_SPEED_UPPER_LIMIT (255.0)
+#define IO_SPEED_LOWER_LIMIT (0.0)
+#define IO_SPEED_WN_LPF      (60.0)
+#define IO_SPEED_RATE2       (1500.0)     // Speed at which reference rate doubles
+#define IO_THROTTLE_THRESH   (1100.0)
+#define IO_FEEDFORWARD_SPEED (0.1)
 
 void IO_setup(void){
     IO_SystemState = SYS_BOOT;
@@ -230,7 +239,7 @@ void IO_setup(void){
     IO_roll_ref = 0;
     IO_pitch_ref = 0;
     IO_yaw_ref = 0;
-    
+
     IO_longitudinal = 0;
     IO_lateral = 0;
     IO_collective = 0;
@@ -283,7 +292,7 @@ int IO_getLine(FSFILE * fd, char * string){
     if (FSfread (string, 1, 1, fd) != 1)
         while(1);
     numbytes++;
-    
+
     while(*string != '\n'){
        string++;
        if (FSfread (string, 1, 1, fd) != 1)
@@ -295,7 +304,7 @@ int IO_getLine(FSFILE * fd, char * string){
 }
 
 void IO_Control_Int_Enable(void){
-    IO_gyro_gain = PWM_PULSEWIDTH2BYTE(SPEKTRUM_getGainNominal());
+    IO_gyro_gain = PWM_GAIN2BYTE(IO_GYRO_GAIN);
 
     // clear interrupt flag
     mT3ClearIntFlag();
@@ -373,13 +382,13 @@ void IO_changeNotificationSetup(void){
     // D6,CN15: OPTO-ENCODER
     // D7,CN16: GYROGAIN [5]
     // D13,CN19: ULTRASONIC SENSOR PULSEWIDTH
-    
+
     // PGEC1/AN1/CN3/RB1 (24): ESC
     // AN2/C2IN-/CN4/RB2 (23): RIGHT
     // AN3/C2IN+/CN5/RB3 (22): REAR
     // AN4/C1IN-/CN6/RB4 (21): RUDDER
     // AN5/C1IN+/V BUSON /CN7/RB5 (20): LEFT
-    
+
     #if defined(SETUP_RADIO_DETECT)
         PORTSetPinsDigitalIn(IOPORT_D, BIT_6 | BIT_7 | BIT_13);
         PORTSetPinsDigitalIn(IOPORT_B, BIT_1 | BIT_2 | BIT_3 | BIT_4 | BIT_5);
@@ -512,7 +521,7 @@ bool IO_write_FS(IO_file * io_file, char * data, UINT16 len){
             memcpy(&(io_file->overflow_buffer[io_file->overflow_length]), data, len);
             io_file->overflow_length += len;
         }
-        
+
         return true;
     }
     else
@@ -612,7 +621,7 @@ void IO_setupPWM_default(void){
 UINT16 IO_PWM_dc(float dc){
     if (dc > 100.0)
         return IO_PWM_PERIOD;
-    
+
     if (dc < 0.0)
         return 0;
 
@@ -629,7 +638,7 @@ void IO_LED_init(int toggle_number){
         IO_setupPWM_default();
         IO_delayms(200);
     }
-    
+
     IO_delayms(1000);
 }
 
@@ -796,7 +805,11 @@ unsigned short int IO_getRotorSpeed(void){
     // angular_speed    1 rev     60 rev       6 rpm
     //               = ------- = ---------- = ------ , where dt is the period NOT mark time
     //                 dt*10 s    dt*10 min    dt
-    if ((IO_rotor_speed_dt != 0) && (!IO_rotor_speed_timeout)){
+
+    if (IO_rotor_speed_dt == 0)
+        return 0;
+
+    if (!IO_rotor_speed_timeout){
         float rotor_speed_temp = ((float)240e6)/((float)IO_rotor_speed_dt);
 
         // This is to prevent outliers from passing through...best estimate is last valid measurement
@@ -811,7 +824,18 @@ unsigned short int IO_getRotorSpeed(void){
 
         return (unsigned short int) floor(IO_rotor_speed + 0.5);
     }
-    return 0;
+    else{
+        // if there is a timeout and the previous speed is less than 1000 rpm then reset speed to 0
+        if (previous_speed < 500){
+            previous_speed = 0;
+            IO_rotor_speed = 0;
+            return 0;
+        }
+    }
+
+    // if there is a timeout and the speed is greater than 500rpm then best bet
+    // for current speed is previous speed
+    return (unsigned short int) floor(previous_speed + 0.5);
 }
 
 float IO_getFilteredRotorSpeed(void){
@@ -828,6 +852,10 @@ bool IO_timeoutSpeed(void){
         IO_rotor_speed_timeout = false;
         return false;
     }
+}
+
+bool IO_getSpeedTimeout(void){
+    return IO_rotor_speed_timeout;
 }
 
 UINT16 IO_getGyroGain(void){
@@ -892,13 +920,16 @@ void IO_control_exec(void){
     static UINT32 prev_timestamp = 0;
 
     UINT32 current_time_us = IO_updateCoreTime_us();
-    
+
     IO_sendData(current_time_us);
-    
+
     int temp_time = ReadCoreTimer();
     float control_dt = (float)((unsigned int)((unsigned int) temp_time - (int) prev_timestamp))/40e6;
+    if (control_dt > 1000e-3){
+        control_dt = 10e-3;
+    }
     prev_timestamp = temp_time;
-    
+
     IMU_propagateState(control_dt);
     IO_main_control(control_dt);
 }
@@ -913,11 +944,10 @@ void IO_main_control(float dt){
     static float internal_reference_speed = 0.0;
     static float collective_sig = IO_COLLECTIVE_START;
     static float altitude_ref_forced_landing = IO_LANDING_HEIGHT;
-    
+
     // Dynamic variables
     float throttle = 0, delta_right = 0, delta_rear, delta_left = 0;
     float yaw_angle_reference = 0, altitude_reference = 0;
-    float height_sensor = 0;
 
     // If manual mode is activated, override system state to manual
     if (!SPEKTRUM_isAutoMode()){
@@ -933,10 +963,10 @@ void IO_main_control(float dt){
     IO_getRefInputs(&throttle, &delta_right, &delta_rear, &delta_left,
         &altitude_reference, &yaw_angle_reference, &IO_roll_ref, &IO_pitch_ref,
             &IO_x_ref, &IO_y_ref);
-    
+
     float collective_raw = 0, lateral_raw = 0, longitudinal_raw = 0;
     IO_getRotorInputs(&collective_raw, &lateral_raw, &longitudinal_raw);
-    
+
     /* Filtering operations */
     // Filter altitude reference
     float altitude_reference_filtered = IO_filter_altitude_prefilter(altitude_reference, dt, IO_ALTITUDE_LPF_WN);
@@ -946,6 +976,10 @@ void IO_main_control(float dt){
     float yaw_ref_filtered = IO_filter_yaw_prefilter(yaw_angle_reference, dt, IO_YAW_LPF_WN);
     yaw_ref_filtered = IO_limits(-IO_YAW_ANGLE_LIMIT, IO_YAW_ANGLE_LIMIT, yaw_ref_filtered);
     IO_yaw_ref = yaw_ref_filtered;
+    // Filter speed; updates IO_filteredRotorSpeed
+    IO_filter_speed((float)IO_getRotorSpeed(), dt, IO_SPEED_WN_LPF);
+    // Filter translation reference
+    IO_filter_translationref_prefilter(&IO_x_ref, &IO_y_ref, dt, IO_TRANSLATION_WN);
 
 //       -------> MANUAL <--------
 //       |          /|\          |
@@ -978,21 +1012,21 @@ void IO_main_control(float dt){
             /********************* MODE SWITCH **************************/
             if ((throttle > IO_THROTTLE_THRESH) && (SPEKTRUM_isAutoMode())){
                 internal_collective = IO_COLLECTIVE_START;
-                IO_setSystemState(SYS_TAKEOFF);    
+                IO_setSystemState(SYS_TAKEOFF);
             }
 
             IO_ref_speed = internal_reference_speed;
-            
+
             break;
-            
+
         case SYS_TAKEOFF:
             // Collective should remain at IO_COLLECTIVE_START during run up
             // Speed reference generation
             if (throttle > IO_THROTTLE_THRESH){
-                internal_reference_speed = internal_reference_speed + 1;    // 100rpm increase per second
+                internal_reference_speed = internal_reference_speed + 2;    // 100rpm increase per second
                 // double rate of increase if speed is greater than 1500 rpm
                 if (internal_reference_speed > IO_SPEED_RATE2)
-                    internal_reference_speed = internal_reference_speed + 2;    // incl. above --> 300 rpm incr/s
+                    internal_reference_speed = internal_reference_speed + 3;    // incl. above --> 300 rpm incr/s
             }
             else{
                 // If user has throttle below threshold for any reason reset reference speed
@@ -1012,7 +1046,7 @@ void IO_main_control(float dt){
                 internal_collective = internal_collective + IO_OL_CLIMB_RATE;
                 /********************* MODE SWITCH **************************/
                 if (internal_collective >= IO_COLLECTIVE_TAKEOFF_MAX)
-                    IO_setSystemState(SYS_FLY);     
+                    IO_setSystemState(SYS_FLY);
 
                 collective_sig = internal_collective;
                 collective_sig = IO_limits(IO_COLLECTIVE_NOMINAL, IO_COLLECTIVE_TAKEOFF_MAX, collective_sig);
@@ -1023,10 +1057,8 @@ void IO_main_control(float dt){
             }
 
             break;
-            
-        case SYS_FLY:
-            height_sensor = IO_getAltitude();
 
+        case SYS_FLY:
             // only change plant input if there is an update in the sensor reading
             if (ultrasonic_updated){
                 float IO_heave_dt = (IO_get_time_ms() - IO_heave_prev_timestamp)*1e-3;
@@ -1035,9 +1067,15 @@ void IO_main_control(float dt){
                     IO_heave_dt = IO_HEAVE_DT_NOMINAL;
                 IO_heave_prev_timestamp = IO_get_time_ms();
 
-                collective_sig = IO_heave_control(altitude_reference_filtered, height_sensor, -IO_COLLECTIVE_TAKEOFF_MAX, 60, IO_heave_dt) + IO_COLLECTIVE_TAKEOFF_MAX;
+                collective_sig = IO_heave_control(altitude_reference_filtered, IO_getAltitude(), -IO_COLLECTIVE_TAKEOFF_MAX, 60, IO_heave_dt, false) + IO_COLLECTIVE_TAKEOFF_MAX;
                 ultrasonic_updated = false;
             }
+
+//            /********************/
+//            /* Position control */
+//            /********************/
+//            // IO_roll_ref and IO_pitch_ref are modified here
+//            IO_position_control(IO_x_ref, IO_y_ref, &IO_roll_ref, &IO_pitch_ref, dt, false);
 
             /********************* MODE SWITCH **************************/
             if (altitude_reference <= IO_LANDING_REF_THRESH){
@@ -1057,15 +1095,15 @@ void IO_main_control(float dt){
             }
 
             break;
-            
+
         case SYS_LAND:
             switch (IO_LandState){
                 case LAND_NORMAL:
                     // runs every 0.01s
-                    internal_collective = internal_collective - 0.05;
+                    internal_collective = internal_collective - 0.02;
 
                     // Reduce speed as well
-                    internal_reference_speed = internal_reference_speed - 3;
+                    internal_reference_speed = internal_reference_speed - 1;
                     IO_ref_speed = internal_reference_speed;
                     // Limit controllable reference
                     if (IO_ref_speed < IO_RPM_MIN)
@@ -1088,7 +1126,6 @@ void IO_main_control(float dt){
                 case LAND_FORCED:
                 default:
                     // Controlled descent to IO_LANDING_HEIGHT @ -8cm/second
-                    height_sensor = IO_getAltitude();
                     // State that called forced landing must set altitude_ref_forced_landing to last reference altitude
                     altitude_ref_forced_landing = altitude_ref_forced_landing - IO_CL_DESCENT_RATE;   // drop of 8cm per second
                     if (altitude_ref_forced_landing > IO_LANDING_HEIGHT){
@@ -1100,7 +1137,7 @@ void IO_main_control(float dt){
                                 IO_heave_dt = IO_HEAVE_DT_NOMINAL;
                             IO_heave_prev_timestamp = IO_get_time_ms();
 
-                            collective_sig = IO_heave_control(altitude_ref_forced_landing, height_sensor, -IO_COLLECTIVE_TAKEOFF_MAX, 60, IO_heave_dt) + IO_COLLECTIVE_TAKEOFF_MAX;
+                            collective_sig = IO_heave_control(altitude_ref_forced_landing, IO_getAltitude(), -IO_COLLECTIVE_TAKEOFF_MAX, 60, IO_heave_dt, false) + IO_COLLECTIVE_TAKEOFF_MAX;
                             ultrasonic_updated = false;
                         }
                     }
@@ -1129,150 +1166,47 @@ void IO_main_control(float dt){
     // Update IO_esc control signal
     IO_esc = IO_ESC_controller(IO_ref_speed, dt);
     // Update IO_tailrate
-//    IO_tailrate = (float)IO_getRudder();    /* Manual control */
+    //IO_tailrate = (float)IO_getRudder() - (float)SPEKTRUM_getRudderNominal();    /* Manual control */
     IO_tailrate = IO_yaw_control(dt, yaw_ref_filtered); /* Yaw hold */
     // Heave control only operational in SYS_FLY mode but is generated for open-loop SYS_TAKEOFF AND SYS_LAND
     IO_lateral = lateral_raw;
     IO_longitudinal = longitudinal_raw;
     IO_collective = collective_sig;
 
+//            /********************/
+//            /* Position control */
+//            /********************/
+//            // IO_roll_ref and IO_pitch_ref are modified here
+//            IO_position_control(IO_x_ref, IO_y_ref, IO_z_ref, &IO_roll_ref, &IO_pitch_ref, dt, false);
+
     /*****************/
-    /* Atitude control  */
+    /* Atitude control/
     /*****************/
+    // Add roll and pitch input bias
+    IO_roll_ref += IO_ROLL_BIAS;
+    IO_pitch_ref += IO_PITCH_BIAS;
+    // Limit roll and pitch angles
+    IO_roll_ref = IO_limits(IO_ROLL_ANGLE_LOWER_LIMIT, IO_ROLL_ANGLE_UPPER_LIMIT, IO_roll_ref);
+    IO_pitch_ref = IO_limits(IO_PITCH_ANGLE_LOWER_LIMIT, IO_PITCH_ANGLE_UPPER_LIMIT, IO_pitch_ref);
     IO_lateral = IO_roll_control(IO_roll_ref, dt, false) + IO_LATERAL_BIAS;
     IO_lateral = IO_limits(IO_LATERAL_LOWER_LIMIT, IO_LATERAL_UPPER_LIMIT, IO_lateral);
     IO_longitudinal = IO_pitch_control(IO_pitch_ref, dt, false) + IO_LONGITUDINAL_BIAS;
     IO_longitudinal = IO_limits(IO_LONGITUDINAL_LOWER_LIMIT, IO_LONGITUDINAL_UPPER_LIMIT, IO_longitudinal);
     /*****************/
 
+    // Decouple heave yaw dynamics via precompensation
+    // IO_HeaveYaw_decoupler(IO_collective, IO_tailrate);
+    IO_esc += IO_ESC_feedforward(IO_collective);
     // Supply input to plant
     IO_writePWMmodule(IO_esc, IO_lateral, IO_longitudinal, IO_collective, IO_tailrate);
     // Vital logging
     IO_logControl();
 }
 
-//void IO_Control(void){
-//    static UINT32 IO_prev_timestamp = 0;
-//    static UINT32 IO_prev_heave_timestamp = 0;
-//    static bool reference_above_landing = false;
-//    static bool landing_routine_active = false;
-//    static UINT32 height_above_ref_timer = 0;
-//    static bool takeoff = false;
-//
-//    // ********************************************************************* //
-//    // *** BEGIN Motor speed control *************************************** //
-//    // ********************************************************************* //
-//    float throttle = (float)IO_getESC();
-//    IO_ref_speed = IO_generateRefSpeed(throttle);
-//    IO_ref_speed = IO_limits(IO_RPM_MIN, IO_RPM_MAX, IO_ref_speed);
-//
-//    UINT32 current_time = IO_get_time_ms();
-//    float IO_dt = (current_time - IO_prev_timestamp)*1e-3;
-//    IO_prev_timestamp = current_time;
-//
-//    IO_ESC_controller(IO_ref_speed, IO_dt);
-//    // ******************************************* END Motor speed control ***//
-//
-//    int right = (int)SPEKTRUM_getRIGHT() - SPEKTRUM_getRightNominal();
-//    int rear = -((int)SPEKTRUM_getREAR() - SPEKTRUM_getRearNominal());
-//    int left = -((int)SPEKTRUM_getLEFT() - SPEKTRUM_getLeftNominal());
-//    float collective = (right+left+rear)/3;
-//
-//    // Get roll and pitch reference in degrees
-//    IO_roll_ref = -(float)(right-left)*IO_ROLL_ANGLE_UPPER_LIMIT/SPEKTRUM_DELTA_LAT_MAX;
-//    IO_pitch_ref = (float)((right+left)/2-rear)*IO_PITCH_ANGLE_UPPER_LIMIT/SPEKTRUM_DELTA_LONG_MAX;
-//    // Put limit on angle range in degrees
-//    IO_roll_ref = IO_limits(IO_ROLL_ANGLE_LOWER_LIMIT, IO_ROLL_ANGLE_UPPER_LIMIT, IO_roll_ref);
-//    IO_pitch_ref = IO_limits(IO_PITCH_ANGLE_LOWER_LIMIT, IO_PITCH_ANGLE_UPPER_LIMIT, IO_pitch_ref);
-//
-//    // Get position reference in meters
-//    IO_x_ref = -(float)((right+left)/2-rear)*IO_Y_UPPER_LIMIT/SPEKTRUM_DELTA_LONG_MAX;
-//    IO_y_ref = (float)(right-left)*IO_X_UPPER_LIMIT/SPEKTRUM_DELTA_LAT_MAX;
-//    // Put limit on range
-//    IO_x_ref = IO_limits(IO_X_LOWER_LIMIT, IO_X_UPPER_LIMIT, IO_x_ref);
-//    IO_y_ref = IO_limits(IO_Y_LOWER_LIMIT, IO_Y_UPPER_LIMIT, IO_y_ref);
-//
-//    int right_new = (int)IO_getRight() - SPEKTRUM_getRightNominal();
-//    int rear_new = -((int)IO_getRear() - SPEKTRUM_getRearNominal());
-//    int left_new = -((int)IO_getLeft() - SPEKTRUM_getLeftNominal());
-//    float collective_new = (right_new+left_new+rear_new)/3;
-//    float lateral = (float)(right_new-left_new)/(2);
-//    float longitudinal = (float)((right_new+left_new)/2-rear_new)/3;
-//
-//    // ********************************************************************* //
-//    IO_collective = IO_heaveControl(throttle, IO_dt);
-//    // ********************************************************************* //
-//
-//    /*****************/
-//    /*  Yaw control  */
-//    /*****************/
-//    float yaw_angle_ref = -(float)(SPEKTRUM_getRUDDER()-SPEKTRUM_getRudderNominal());
-//    if (yaw_angle_ref < 0)
-//        IO_yaw_ref = (float)360/398*yaw_angle_ref;
-//    else
-//        IO_yaw_ref = (float)360/446*yaw_angle_ref;
-//    // Yaw angle pre-filter
-//    float yaw_ref_filtered = IO_filter_yaw_prefilter(IO_yaw_ref, IO_dt, IO_YAW_LPF_WN);
-//    IO_yaw_ref = yaw_ref_filtered;
-//    IO_tailrate = IO_yaw_control(IO_dt, yaw_ref_filtered);
-//
-//    /********************/
-//    /* Position control */
-//    /********************/
-//    // IO_roll_ref and IO_pitch_ref are modified here
-////    IO_position_control(IO_x_ref, IO_y_ref, &IO_roll_ref, &IO_pitch_ref, IO_dt, false);
-//    // Add roll and pitch input bias
-//    IO_roll_ref += IO_ROLL_BIAS;
-//    IO_pitch_ref += IO_PITCH_BIAS;
-//    // Limit roll and pitch angles
-//    IO_roll_ref = IO_limits(IO_ROLL_ANGLE_LOWER_LIMIT, IO_ROLL_ANGLE_UPPER_LIMIT, IO_roll_ref);
-//    IO_pitch_ref = IO_limits(IO_PITCH_ANGLE_LOWER_LIMIT, IO_PITCH_ANGLE_UPPER_LIMIT, IO_pitch_ref);
-//
-//    /*****************/
-//    /* Atitude control  */
-//    /*****************/
-//    IO_lateral = IO_roll_control(IO_roll_ref, IO_dt, false) + IO_LATERAL_BIAS;
-//    IO_lateral = IO_limits(IO_LATERAL_LOWER_LIMIT, IO_LATERAL_UPPER_LIMIT, IO_lateral);
-//    IO_longitudinal = IO_pitch_control(IO_pitch_ref, IO_dt, false) + IO_LONGITUDINAL_BIAS;
-//    IO_longitudinal = IO_limits(IO_LONGITUDINAL_LOWER_LIMIT, IO_LONGITUDINAL_UPPER_LIMIT, IO_longitudinal);
-//    /*****************/
-//
-//    //IO_collective = collective_new;
-//    IO_lateral = lateral;
-//    IO_longitudinal = longitudinal;
-////    IO_tailrate = IO_getRudder();
-//
-//    // Cut-off mode
-//    if (throttle < 1100){
-//        // set collective to be positive (but not too much) so blade will not
-//        // hit tail on landing [autorotation terminal phase]
-//        IO_collective = 120;
-//    }
-//
-//    UINT8 esc_in = (UINT8) IO_limits(IO_PWM_SAT_MIN, IO_PWM_SAT_MAX, IO_esc);
-//    UINT8 esc = PWM_PULSEWIDTH2BYTE((int)(throttle));
-//    UINT8 servo_right = PWM_PULSEWIDTH2BYTE((int)(SPEKTRUM_getRightNominal() + IO_lateral + IO_longitudinal + IO_collective));
-//    UINT8 servo_rear = PWM_PULSEWIDTH2BYTE((int)(SPEKTRUM_getRearNominal() + 2*IO_longitudinal - IO_collective));
-//    UINT8 servo_tail = PWM_PULSEWIDTH2BYTE((int)IO_tailrate);
-//    UINT8 servo_left = PWM_PULSEWIDTH2BYTE((int)(SPEKTRUM_getLeftNominal() + IO_lateral - IO_longitudinal - IO_collective));
-//
-////    PWM_data[0] = ESC_input;
-////    PWM_data[1] = servo_right;
-////    PWM_data[2] = servo_rear;
-////    PWM_data[3] = servo_tail;
-////    PWM_data[4] = PWM_PULSEWIDTH2BYTE(SPEKTRUM_getGainNominal());
-////    PWM_data[5] = servo_left;
-////
-////    bool auto_mode_on = SPEKTRUM_isAutoMode();
-////    bool ack = PWM_sendPacket(auto_mode_on,PWM_data,6);
-////    IO_writePWMmodule(esc_in, servo_right, servo_rear, servo_tail, IO_gyro_gain, servo_left);
-//    IO_logControl();
-//}
-
 void IO_getRefInputs(float * throttle, float * del_right, float * del_rear, float * del_left,
         float * alt_ref, float * yaw_ref, volatile float * roll_ref, volatile float * pitch_ref,
         volatile float * x_ref, volatile float * y_ref){
-    
+
     *throttle = (float)IO_getESC();
 
     *del_right = (int)SPEKTRUM_getRIGHT() - SPEKTRUM_getRightNominal();
@@ -1291,8 +1225,8 @@ void IO_getRefInputs(float * throttle, float * del_right, float * del_rear, floa
     float lat = -(float)((*del_right)-(*del_left));
     float lon = (float)(((*del_right)+(*del_left))/2-(*del_rear));
 
-    *roll_ref = lat*IO_ROLL_ANGLE_UPPER_LIMIT/SPEKTRUM_DELTA_LAT_MAX + IO_ROLL_BIAS;
-    *pitch_ref = lon*IO_PITCH_ANGLE_UPPER_LIMIT/SPEKTRUM_DELTA_LONG_MAX + IO_PITCH_BIAS;
+    *roll_ref = lat*IO_ROLL_ANGLE_UPPER_LIMIT/SPEKTRUM_DELTA_LAT_MAX;
+    *pitch_ref = lon*IO_PITCH_ANGLE_UPPER_LIMIT/SPEKTRUM_DELTA_LONG_MAX;
     // Put limit on angle range in degrees
     *roll_ref = IO_limits(IO_ROLL_ANGLE_LOWER_LIMIT, IO_ROLL_ANGLE_UPPER_LIMIT, *roll_ref);
     *pitch_ref = IO_limits(IO_PITCH_ANGLE_LOWER_LIMIT, IO_PITCH_ANGLE_UPPER_LIMIT, *pitch_ref);
@@ -1377,7 +1311,7 @@ bool IO_writePWMmodule(float esc, float lateral, float longitudinal, float colle
         IO_statusReg |= IO_RN131_SYNC;
     else
         IO_statusReg &= ~IO_RN131_SYNC;
-    
+
     // update timeout status
     if (RN131_getTimeout())
         IO_statusReg |= IO_RN131_TIMEOUT;
@@ -1399,16 +1333,46 @@ bool IO_writePWMmodule(float esc, float lateral, float longitudinal, float colle
         IO_statusReg |= IO_SPEKTRUM_TIMEOUT;
     else
         IO_statusReg &= ~IO_SPEKTRUM_TIMEOUT;
+
+    if (IO_getSpeedTimeout())
+        IO_statusReg |= IO_SPEED_SENSOR_TIMEOUT;
+    else
+        IO_statusReg &= ~IO_SPEED_SENSOR_TIMEOUT;
+    
     // Compute checksum and send via I2C
     // Time from write to PWM change with one shot firmware ~660us
-    return PWM_sendPacket(auto_mode_on, IO_PWM_packet, 6);
+    bool pwm_ack = PWM_sendPacket(auto_mode_on, IO_PWM_packet, 6);
+
+    if (pwm_ack)
+        IO_statusReg |= IO_PWM_ACK;
+    else
+        IO_statusReg &= IO_PWM_ACK;
+
+    return pwm_ack;
+}
+
+void IO_HeaveYaw_decoupler(float collective_input, float yawrate_input){
+    /*
+                      |-------------|
+    G_HEAVE_OUT ----> |             | -----> COLLECTIVE_INPUT
+                      | K decouple  |
+    G_YAWRATE_OUT --> |             | -----> YAWRATE_INPUT
+                      |-------------|
+
+     COLLECTIVE_INPUT = K11*G_HEAVE_OUT + K12*G_YAWRATE_OUT
+     YAWRATE_INPUT    = K21*G_HEAVE_OUT + K22*G_YAWRATE_OUT
+     */
+    IO_collective = IO_HEAVE_YAW_DECOUPLER_11*collective_input + IO_HEAVE_YAW_DECOUPLER_12*yawrate_input;
+    IO_tailrate = IO_HEAVE_YAW_DECOUPLER_21*collective_input + IO_HEAVE_YAW_DECOUPLER_22*yawrate_input;
+}
+
+float IO_ESC_feedforward(float collective){
+    return IO_FEEDFORWARD_SPEED*collective;
 }
 
 float IO_ESC_controller(float ref_speed, float dt){
     static float speed_input[3] = {0}, speed_output[3] = {0};
-    
-    // filter speed, updates IO_filteredRotorSpeed
-    IO_filter_speed((float)IO_getRotorSpeed(), dt, IO_SPEED_WN_LPF);
+
     float current_error = (ref_speed - IO_getFilteredRotorSpeed())*IO_RPM_2_RAD_PER_SEC;
     float upper_limit_int_speed = IO_SPEED_UPPER_LIMIT*IO_SPEED_OMEGA_TI/IO_SPEED_KP;
     float esc = IO_PI_with_limits(IO_SPEED_KP, IO_SPEED_OMEGA_TI, dt, current_error,
@@ -1418,7 +1382,7 @@ float IO_ESC_controller(float ref_speed, float dt){
 
 float IO_getAltitudeReference(float throttle){
     float altitude_ref = 0;
-    
+
     if (throttle < IO_THROTTLE_ST1_MAX)
         altitude_ref = (throttle - IO_THROTTLE_ST1_MIN)/IO_ST1_DIV;
     else
@@ -1739,6 +1703,30 @@ float IO_filter_yaw_prefilter(float yaw_in, float dt, float wn){
     return yaw_output[0];
 }
 
+void IO_filter_translationref_prefilter(volatile float * x_ref, volatile float * y_ref, float dt, float wn){
+    static float x_input[3] = {0}, x_output[3] = {0};
+    static float y_input[3] = {0}, y_output[3] = {0};
+
+    float n0 = (dt*wn);
+    float n1 = (dt*wn);
+    float d0 = (dt*wn + 2);
+    float d1 = (dt*wn - 2);
+
+    IO_shiftData(&x_input[0]);
+    x_input[0] = *x_ref;
+    IO_shiftData(&x_output[0]);
+
+    IO_shiftData(&y_input[0]);
+    y_input[0] = *y_ref;
+    IO_shiftData(&y_output[0]);
+
+    IO_filter_1st_order(n0, n1, d0, d1, &x_input[0], &x_output[0]);
+    IO_filter_1st_order(n0, n1, d0, d1, &y_input[0], &y_output[0]);
+
+    *x_ref = x_output[0];
+    *y_ref = y_output[0];
+}
+
 float IO_LPF_1st(float input[3], float output[3], float dt, float wn){
     float n0 = (dt*wn);
     float n1 = (dt*wn);
@@ -1782,13 +1770,21 @@ float IO_pitch_control(float pitch_reference, float dt, bool initialise){
         memset(&notch_output[0],0,sizeof(float)*3);
         return 0;
     }
-    
+
     return IO_PITCH_KP*IO_complex_lead_lag(IO_PITCH_NOTCH_WN_Z, IO_PITCH_NOTCH_WZ_DAMP, IO_PITCH_NOTCH_WN_P, IO_PITCH_NOTCH_WP_DAMP, dt, &notch_input[0], &notch_output[0]);
 }
 
-float IO_heave_control(float heave_reference, float height_sensor, float lower_ctrl_limit, float upper_ctrl_limit, float dt){
+float IO_heave_control(float heave_reference, float height_sensor, float lower_ctrl_limit, float upper_ctrl_limit, float dt, bool initialise){
     static float heave_error[3] = {0}, heave_input[3] = {0};
     static float int_input[3] = {0}, int_output_[3] = {0};
+
+    if (initialise){
+        memset(&heave_error[0],0,sizeof(float)*3);
+        memset(&heave_input[0],0,sizeof(float)*3);
+        memset(&int_input[0],0,sizeof(float)*3);
+        memset(&int_output_[0],0,sizeof(float)*3);
+        return 0;
+    }
 
     IO_shiftData(&heave_error[0]);
     // Negative because of the opposite frame of reference
@@ -1809,22 +1805,21 @@ float IO_yaw_control(float dt, float yaw_ref){
     static float int_input[3] = {0}, int_output_[3] = {0};
 
     IO_shiftData(&yaw_error[0]);
-    
     yaw_error[0] = yaw_ref - (*IMU_getYaw());
     IO_shiftData(&yaw_input[0]);
 
     // calculate derivative control signal
-    float derivative_signal = IO_YAW_KP*IO_lead_lag(IO_YAW_OMEGA_LEAD, IO_YAW_OMEGA_LAG, dt, &yaw_error[0], &yaw_input[0]);
-    float lower_limit_int = IO_YAW_LOWER_LIMIT*IO_YAW_OMEGA_TI;
-    float upper_limit_int = IO_YAW_UPPER_LIMIT*IO_YAW_OMEGA_TI;
+    float derivative_signal = IO_lead_lag((float)IO_YAW_OMEGA_LEAD, (float)IO_YAW_OMEGA_LAG, dt, &yaw_error[0], &yaw_input[0]);
+    float lower_limit_int = IO_YAW_LOWER_LIMIT*IO_YAW_OMEGA_TI/IO_YAW_KP;
+    float upper_limit_int = IO_YAW_UPPER_LIMIT*IO_YAW_OMEGA_TI/IO_YAW_KP;
 
-    float yaw_control_sig = IO_PI_with_limits(1, IO_YAW_OMEGA_TI, dt, derivative_signal,
+    float yaw_control_sig = IO_PI_with_limits((float)IO_YAW_KP, (float)IO_YAW_OMEGA_TI, dt, derivative_signal,
         &int_input[0], &int_output_[0], lower_limit_int, upper_limit_int);
 
     return (-yaw_control_sig);
 }
 
-void IO_position_control(float x_ref, float y_ref, float * roll_cmd, float * pitch_cmd, float dt, bool initialise){
+void IO_position_control(float x_ref, float y_ref, float z_ref, volatile float * roll_cmd, volatile float * pitch_cmd, float dt, bool initialise){
     static float error_x[3] = {0}, pitch_x[3] = {0};
     static float error_y[3] = {0}, roll_y[3] = {0};
     static float error_x2[3] = {0}, pitch_x2[3] = {0};
@@ -1834,8 +1829,11 @@ void IO_position_control(float x_ref, float y_ref, float * roll_cmd, float * pit
     static float x_lpf_input[3] = {0}, x_lpf_output[3] = {0};
     static float y_lpf_input[3] = {0}, y_lpf_output[3] = {0};
 
+    float tx = 0; float ty = 0; float tz = 0;
+    RN131_extrapolatePosition(&tx, &ty, &tz);
+
     float position_err_body[3] = {0};
-    float position_err_inertial[3] = {x_ref - RN131_get_tx(),y_ref - RN131_get_ty(),0};
+    float position_err_inertial[3] = {x_ref - tx,y_ref - ty, 0};
 
     // use conjugate of quaternion to find body frame errors
     float q_conjugate[4] = {IMU_getQuaternion_q0(),-IMU_getQuaternion_q1(),-IMU_getQuaternion_q2(),-IMU_getQuaternion_q3()};
@@ -1891,6 +1889,9 @@ void IO_position_control(float x_ref, float y_ref, float * roll_cmd, float * pit
     pitch_lead = IO_LPF_1st(&x_lpf_input[0], &x_lpf_output[0], dt, IO_X_LPF_WN);
     roll_lead = IO_LPF_1st(&y_lpf_input[0], &y_lpf_output[0], dt, IO_Y_LPF_WN);
 
+//    *pitch_cmd = IO_LPF_1st(&x_lpf_input[0], &x_lpf_output[0], dt, IO_X_LPF_WN);
+//    *roll_cmd = IO_LPF_1st(&y_lpf_input[0], &y_lpf_output[0], dt, IO_Y_LPF_WN);
+
 //    IO_shiftData(&error_x2[0]);
 //    error_x2[0] = pitch_lead;
 //    IO_shiftData(&pitch_x2[0]);
@@ -1934,7 +1935,7 @@ volatile UINT32 IO_updateCoreTime_us(void){
         IO_time_raw += dt;
         IO_coreupdate_mutex = false;
     }
-    
+
     return (UINT32)(IO_time_raw / 40);
 }
 
@@ -2010,11 +2011,7 @@ void __ISR(_CORE_TIMER_VECTOR, IO_CT_IPL) CoreTimerHandler(void){
 
     SPEKTRUM_timeoutInc();
     RN131_timeoutInc();
-
-    // When rotor does not get updated, speed should be set to zero
-    if (IO_timeoutSpeed()){
-        IO_rotor_speed = 0;
-    }
+    IO_timeoutSpeed();
 
     if (IO_SystemPreviousState != IO_SystemState)
         heartbeat_count = 0;
@@ -2281,7 +2278,7 @@ void __ISR(_CHANGE_NOTICE_VECTOR, IO_CN_IPL) changeNotificationHandler(void){
     else{
         IO_RADIO_ERROR = true;
     }
-    
+
 #else
     // Measuring the period of the pulse...not the mark time
     if ((port_val_D & IO_OPTO_ENCODER_PIND) && (pin_prev_state[0] == low))

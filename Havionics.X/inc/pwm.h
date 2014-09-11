@@ -38,6 +38,7 @@ PWM_EXTERN void PWM_initialize(void);
 PWM_EXTERN bool PWM_sendData(void);
 PWM_EXTERN bool PWM_sendPacket(unsigned char config, unsigned char data[], unsigned char len);
 PWM_EXTERN UINT8 PWM_PULSEWIDTH2BYTE(int pulsewidth);
+PWM_EXTERN UINT8 PWM_GAIN2BYTE(float Kp);
 
 #endif	/* PWM_H */
 

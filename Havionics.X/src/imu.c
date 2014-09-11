@@ -6,9 +6,9 @@
 bool IMU_i2cOpen = false;
 
 // in radians
-float IMU_roll = 0;
-float IMU_pitch = 0;
-float IMU_yaw = 0;
+float IMU_roll = 0.0;
+float IMU_pitch = 0.0;
+float IMU_yaw = 0.0;
 
 static float angular_rate[3] = {0};
 
