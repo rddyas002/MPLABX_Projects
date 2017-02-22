@@ -1,1 +1,3 @@
 Folder contains Aerial Application Board Software
+Havionics.X contains the firmware for the Aerial Application Board
+RadioMux.X contains the firmware for the radio multiplexer board
